@@ -720,9 +720,10 @@ messages, suppressions, cooldowns, attempts, and provider IDs across runs.
 
 Atomic claims and stored Resend idempotency keys prevent duplicate sends.
 Delivery is dry-run by default, and the system can pause or resume without
-losing state.
+losing state. After a long pause, only the next pending touch is sent and later
+touches are moved to preserve the sequence spacing.
 
-Nine unit tests cover eligibility, segment boundaries, calendar-month
+Ten unit tests cover eligibility, segment boundaries, calendar-month
 calculations, booking and opt-out transitions, cooldowns, and idempotency. A
 controlled Resend delivery, including calculated months since the patient's
 last visit, is shown in
@@ -750,6 +751,9 @@ in the [README](README.md).
   with human review.
 - Tune send volume and worker concurrency from appointment capacity, queue
   depth, resource use, and provider limits.
+- Further harden scheduled delivery and pause/resume behavior by testing
+  interrupted or overlapping runs, handling longer provider outages, and
+  alerting on messages that become stuck or are retried unexpectedly.
 
 ### Scope intentionally cut
 

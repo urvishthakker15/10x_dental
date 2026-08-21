@@ -23,6 +23,10 @@ from .templates import render_email
 
 CONFIRMED_SEGMENT_SHARES = (("hot", 0.50), ("warm", 0.30), ("cold", 0.10), ("very_cold", 0.10))
 TOUCH_OFFSETS = (timedelta(), timedelta(days=8), timedelta(days=21))
+FOLLOWUP_DELAYS = {
+    1: ((2, timedelta(days=8)), (3, timedelta(days=21))),
+    2: ((3, timedelta(days=13)),),
+}
 COOLDOWN = timedelta(days=90)
 SEND_HOURS = (8, 14, 19)
 STALE_SEND_AFTER = timedelta(minutes=30)
@@ -356,6 +360,12 @@ class RecallEngine:
                 JOIN enrollments e ON e.id=m.enrollment_id
                 JOIN patients p ON p.patient_id=e.patient_id
                 WHERE m.state='pending' AND m.due_at <= ? AND e.status='active'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM messages prior
+                    WHERE prior.enrollment_id=m.enrollment_id
+                      AND prior.touch_number < m.touch_number
+                      AND prior.state IN ('pending', 'sending')
+                  )
                 ORDER BY m.due_at, m.id
                 """,
                 (now.isoformat(timespec="seconds"),),
@@ -451,6 +461,18 @@ class RecallEngine:
                 (now.isoformat(timespec="seconds"), provider_message_id, message["id"]),
             )
             self._record_attempt_in_connection(connection, message["id"], now, "send", "sent", recipient)
+            for touch_number, delay in FOLLOWUP_DELAYS.get(message["touch_number"], ()):
+                connection.execute(
+                    """
+                    UPDATE messages SET due_at=?
+                    WHERE enrollment_id=? AND touch_number=? AND state='pending'
+                    """,
+                    (
+                        (now + delay).isoformat(timespec="seconds"),
+                        message["enrollment_id"],
+                        touch_number,
+                    ),
+                )
             if message["touch_number"] == 3:
                 cooldown_until = now + COOLDOWN
                 connection.execute(
