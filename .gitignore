@@ -1,0 +1,13 @@
+# Supplied assignment materials and source data are not redistributed.
+recall-outreach-project 2/
+
+# Local configuration and generated analysis output.
+.env
+.venv/
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+analysis/**/output/
+data/*.sqlite3
