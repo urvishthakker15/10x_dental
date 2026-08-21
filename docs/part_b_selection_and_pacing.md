@@ -11,11 +11,10 @@ of emails.
 
 ## Objective and conversion definition
 
-The algorithm continuously prioritizes eligible patients, enrolls only a
-controlled weekly volume, and updates decisions from persisted outreach state.
-
-For this plan, a **conversion** is a contacted patient who later books an
-appointment. Appointment completion remains a separate downstream measure.
+The algorithm enrolls a controlled weekly cohort, continuously finds newly
+overdue patients, and uses persisted state to avoid duplicate outreach. A
+**conversion** is a contacted patient who books; attendance is tracked
+separately.
 
 ## Candidate pools
 
@@ -54,9 +53,8 @@ allowed that week.
 | 5% | Cooled-down non-responders | A prior sequence finished without booking/reply and the patient has passed cooldown. Prioritize the lowest `sequence_attempt_count` first. |
 | 5% | No-history prospecting | Low-frequency, separately worded first-visit/reactivation outreach. |
 
-This protects newly overdue patients from being crowded out by older backlog or
-prior non-responders, while preserving a small path to test potential value in
-the ambiguous no-history cohort.
+This keeps new overdue patients from being crowded out while reserving small,
+controlled allocations for recontacts and the ambiguous no-history group.
 
 ## State, tracking, and suppression
 
@@ -76,8 +74,7 @@ cancels all pending touches and sets the status to `booked`. A non-responder
 enters `cooldown` when their sequence completes; after three months, they can
 compete only for the 5% re-contact allocation. Candidates are ordered by the
 fewest prior sequence attempts, then the oldest eligible completion date. This
-prevents repeatedly
-contacting the same person while still allowing controlled reactivation.
+limits repeated contact while allowing controlled reactivation.
 
 Patients who book are not contacted again while booked or on schedule. They
 can enter a future recall cycle only after a later completed visit and a new
@@ -85,7 +82,7 @@ six-month overdue period with no future booking.
 
 ## Ongoing run logic
 
-Every daily or weekly run:
+Each scheduled run:
 
 1. Ingests the latest CSV data and derives current recall state.
 2. Suppresses any active sequence with a new booking, opt-out, or suppression.
@@ -110,13 +107,10 @@ Every daily or weekly run:
 
 ## Initial pacing recommendation
 
-Set an initial ceiling of **100 enrollments/week**. With 10% booking
-conversion, that produces roughly **10 expected bookings/week**, equivalent to
-about 9.7% of the historical average weekly completed appointment volume
-(10 / 103.3). We explicitly assume the practice can absorb ten incremental
-recall bookings per week. The export does not contain actual open-slot data, so
-this is a configurable planning assumption that must be reduced if operations
-cannot support it.
+Set an initial ceiling of **100 enrollments/week**. At 10% conversion, that is
+about **10 bookings/week**, or 9.7% of the historical average completed volume
+(10 / 103.3). I assume the practice can absorb those incremental bookings; the
+ceiling remains configurable because the export has no open-slot data.
 
 | Pool | Enrollments/week |
 | --- | ---: |
@@ -141,10 +135,9 @@ net confirmed-backlog reduction = 90 enrolled - 27 newly overdue = 63/week
 estimated clearance time       = 2,690 / 63 ≈ 43 weeks (about 10 months)
 ```
 
-The confirmed backlog reaches zero in approximately week 43. Afterwards, confirmed enrollment
-scales down to roughly the 27/week inflow; together with re-contact and
-no-history streams, total ongoing activity becomes approximately 37
-enrollments/week.
+The confirmed backlog reaches zero around week 43. Confirmed enrollment then
+falls to the 27/week inflow; including recontacts and no-history prospecting,
+ongoing enrollment is about 37/week.
 
 Over 104 weeks, this scenario projects:
 
@@ -155,22 +148,20 @@ Over 104 weeks, this scenario projects:
 | Expected bookings | 646 |
 | Confirmed backlog remaining | 0 |
 
-This is a planning model, not a capacity guarantee. The weekly ceiling remains
-configurable and should be reduced when actual appointment capacity, conversion,
-delivery health, or opt-out rate indicates a lower safe volume.
+This is a planning model, not a capacity guarantee. Actual appointment
+capacity, conversion, delivery health, and opt-outs should determine the final
+ceiling.
 
 ## Age and seasonal campaigns
 
-Age bands—Child, Adult, Senior, and Unknown age—are retained for analysis and
-message appropriateness, not as core prioritization in the first algorithm.
-Back-to-school outreach for children and holiday-period support for seniors are
-future campaigns, but require confirmed guardian contacts, campaign calendars,
-and capacity data absent from this export.
+Age bands—Child, Adult, Senior, and Unknown—support message design, not core
+prioritization. Seasonal campaigns would require verified guardian contacts,
+campaign calendars, and capacity data absent from this export.
 
 ## Reproducibility
 
-- `analysis/part_b/analyze_pacing_inputs.py` derives backlog, inflow, and throughput
-  inputs from the two CSV files.
+- `analysis/part_b/analyze_pacing_inputs.py` derives backlog, inflow, and
+  throughput inputs from the two CSV files.
 - `analysis/part_b/simulate_pacing.py` runs the configurable 12–24 month projection.
 - `analysis/part_b/simulate_segmented_pacing.py` applies the 90% / 5% / 5% policy to
   the CSV-derived starting pools, ages candidates between segments, tracks

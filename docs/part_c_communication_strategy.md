@@ -18,25 +18,17 @@
 
 ## Scope and communication principles
 
-This deliverable is an **email-only** recall sequence. The supplied data also
-contains phone numbers, but SMS and phone outreach are intentionally out of
-scope: production use would require separate consent, channel-preference, and
-compliance handling. A phone number is not treated as permission to text or
-call.
+This is an **email-only** sequence. A phone number is not treated as permission
+to call or text; those channels need separate consent and preference handling.
 
-Every email uses the patient's first name when available, a verified booking
-link, and a single clear call to action. The emails are deliberately short:
-the first explains why the practice is reaching out, the second removes booking
-friction, and the third respectfully closes the current attempt. Each email
-includes the practice's standard unsubscribe link in its footer. The system
-immediately suppresses remaining touches if the patient books, replies, opts
-out, becomes ineligible, or receives a future non-cancelled appointment.
+Each email uses the patient’s first name, one booking link, one call to action,
+and a visible unsubscribe link. Touch 1 explains the outreach, Touch 2 removes
+booking friction, and Touch 3 closes the attempt respectfully. A booking,
+opt-out, suppression, or future non-cancelled appointment cancels the remaining
+touches.
 
-The copy uses the patient’s overdue segment, rather than clinical claims or
-assumptions about the exact kind of their last visit. This matters because the
-analysis treats any relevant completed appointment as a visit for recall
-purposes; it cannot safely promise that the patient’s last appointment was a
-cleaning.
+Copy changes by overdue segment but avoids claims about the patient’s last
+procedure. The export supports “last visit,” not “last cleaning.”
 
 ## Sequence design and rationale
 
@@ -45,14 +37,12 @@ Each enrolled patient receives up to three emails:
 | Touch | Timing | Purpose |
 | --- | --- | --- |
 | 1 | Day 0 | Explain the reason for contact and invite booking. |
-| 2 | Day 7–10 | Make the next action as easy as possible. |
+| 2 | Day 8 | Make the next action as easy as possible. |
 | 3 | Day 21 | Provide a respectful final reminder and close the sequence. |
 
-Three touches balance recall visibility with patient experience. A one-week
-gap gives the first message time to be seen; the final touch is delayed so it
-does not feel like repeated pressure. A fourth touch is not used in the
-initial sequence because it adds little distinct value; it would be tested
-only if engagement data supports it.
+Three touches provide multiple chances to respond without crowding the inbox.
+The first follow-up waits about a week; the final note arrives on Day 21 and
+then stops. A fourth touch belongs in an experiment, not the default sequence.
 
 The message becomes less conversion-oriented as the patient becomes more
 lapsed:
@@ -61,21 +51,25 @@ lapsed:
 | --- | --- | --- |
 | Hot | More than 6 but less than 9 months | Make a routine return easy to schedule. |
 | Warm | 9 to less than 18 months | Rebuild intent with concise preventive-care context. |
-| Cold | 18 to less than 36 months | Re-engage with verified practice updates and insurance-access information. |
-| Very cold | 36+ months | Confirm continued relevance and permission to stay in touch; a booking is a secondary outcome. |
+| Cold | 18 to less than 36 months | Re-engage around changes in insurance, location, or schedule. |
+| Very cold | 36+ months | Confirm continued relevance; a booking is a secondary outcome. |
 
-Only facts that the practice can verify at send time—such as accepted insurers,
-new locations, available appointments, or a specific offer—may be inserted
-into a template.
+Any insurer, location, availability, or offer mentioned in production must be
+verified at send time.
+
+The current engine uses generic equivalents for fields absent from the export,
+such as suggested slots, availability windows, practice updates, insurance
+information, and offers.
 
 ## Email templates
 
-Replace bracketed fields only with verified, current values. All messages use
-the standard footer: `Unsubscribe from recall emails`.
+Fill template fields only with verified, current values. Every message ends
+with `Unsubscribe from recall emails`.
 
 ### Hot — 6–9 months overdue
 
 **Touch 1 — Day 0**
+
 **Subject:** Time to schedule your next visit, {{first_name}}
 
 Hi {{first_name}},
@@ -90,7 +84,8 @@ available over the next two weeks.
 
 — {{practice_name}}
 
-**Touch 2 — Day 7–10**
+**Touch 2 — Day 8**
+
 **Subject:** Find a time that works for you
 
 Hi {{first_name}},
@@ -103,6 +98,7 @@ schedule makes it easy to choose another time.
 — {{practice_name}}
 
 **Touch 3 — Day 21**
+
 **Subject:** We’ll leave the next step with you
 
 Hi {{first_name}},
@@ -117,6 +113,7 @@ these reminders for now, but whenever you’re ready, we’d be glad to see you.
 ### Warm — 9–18 months overdue
 
 **Touch 1 — Day 0**
+
 **Subject:** Let’s help you get back on track
 
 Hi {{first_name}},
@@ -128,7 +125,8 @@ preventive care can help you stay on top of your dental health.
 
 — {{practice_name}}
 
-**Touch 2 — Day 7–10**
+**Touch 2 — Day 8**
+
 **Subject:** A quick way to schedule
 
 Hi {{first_name}},
@@ -141,6 +139,7 @@ rest. We currently have {{availability_window}} available.
 — {{practice_name}}
 
 **Touch 3 — Day 21**
+
 **Subject:** Here when you’re ready
 
 Hi {{first_name}},
@@ -155,6 +154,7 @@ okay; you can schedule with us whenever it is.
 ### Cold — 18–36 months overdue
 
 **Touch 1 — Day 0**
+
 **Subject:** A lot can change—let’s reconnect
 
 Hi {{first_name}},
@@ -167,7 +167,8 @@ back.
 
 — {{practice_name}}
 
-**Touch 2 — Day 7–10**
+**Touch 2 — Day 8**
+
 **Subject:** Your next visit can start here
 
 Hi {{first_name}},
@@ -180,6 +181,7 @@ We have [verified availability or offer] for returning patients.
 — {{practice_name}}
 
 **Touch 3 — Day 21**
+
 **Subject:** We’ll pause reminders for now
 
 Hi {{first_name}},
@@ -194,6 +196,7 @@ like to return, we’re here to help you find a time that works.
 ### Very cold — more than 36 months overdue
 
 **Touch 1 — Day 0**
+
 **Subject:** Are you still in the area, {{first_name}}?
 
 Hi {{first_name}},
@@ -205,7 +208,8 @@ would like to return, we would be glad to help. If not, no action is needed.
 
 — {{practice_name}}
 
-**Touch 2 — Day 7–10**
+**Touch 2 — Day 8**
+
 **Subject:** Still here when you need us
 
 Hi {{first_name}},
@@ -218,7 +222,8 @@ reach out when dental care is needed.
 — {{practice_name}}
 
 **Touch 3 — Day 21**
-**Subject:** Closing this reminder series
+
+**Subject:** Closing the loop for now
 
 Hi {{first_name}},
 
@@ -231,60 +236,27 @@ in the future, you can always schedule online.
 
 ## After the final touch
 
-No response after the final touch marks the sequence as `completed_no_response`
-and starts the three-month cooldown defined in Part B. The patient is not
-contacted again during that window. After cooldown, only the small recontact
-allocation is eligible, with patients who have had fewer sequence attempts
-prioritized. This prevents the same people from receiving repeated campaigns
-while allowing a later, lower-frequency re-engagement attempt.
+No response marks the sequence `completed_no_response` and starts a three-month
+cooldown. Afterward, the patient may enter only the 5% recontact pool; fewer
+prior attempts receive priority. This allows low-frequency re-engagement
+without repeatedly targeting the same people.
 
-## Future work
+## What I would test next
 
-With more time and appropriate approval controls, AI could assist in drafting
-segment-specific variants of approved templates. It would not be allowed to
-invent clinical claims, insurance participation, appointment availability, or
-offers; outputs would be constrained to approved facts, reviewed against brand
-and compliance rules, and tested before broader use.
-
-The production program would add a measurement and experimentation loop. The
-primary measures would be booking conversion (`bookings / contacted patients`),
-unsubscribe rate (`unsubscribes / contacted patients`), and the
-success-to-unsubscribe ratio (`bookings / unsubscribes`). Delivery failures,
-complaints, replies, and opens or clicks where reliable would be supporting
-measures. Results would be compared by overdue segment, sequence touch,
-template variant, and send-time cohort.
-
-This makes both outcomes visible: a template that produces more bookings but a
-disproportionate rise in unsubscribes is not automatically better. With enough
-sample size, controlled tests would refine subject lines, format, copy, timing,
-and cadence while unsubscribe and complaint rates act as guardrails. A booking
-is the sequence conversion used here; completed appointments would be tracked
-separately as a downstream business outcome.
-
-Future versions would also ingest replies and other inbound responses instead
-of treating outreach as one-way communication. Responses such as "I moved,"
-"I use another practice," "contact me later," or "my insurance changed" would
-be classified into structured outcomes. After appropriate verification, those
-facts could update the existing patient record, stop unsuitable follow-ups,
-and make the next conversation more relevant. Ambiguous responses would be
-routed for staff review rather than automatically changing clinical or contact
-records.
-
-Aggregated response data could also inform broader practice decisions. For
-example, a meaningful concentration of former patients reporting a move to the
-same city could contribute evidence when evaluating a new location. This would
-be one planning input alongside market size, patient demand, competition, and
-operating cost; respondents are a self-selected sample and should not be
-treated as representative of the full patient base.
-
-The three-touch sequence would also be tested against a four-touch variant.
-The additional touch would be retained only if its incremental bookings justify
-the corresponding unsubscribe, complaint, and brand-experience costs.
-
-The initial algorithm does not prioritize by age. Future campaign planning may
-use age segments only where appropriate and supported by contact data: for
-example, a back-to-school campaign for children or a holiday-period campaign
-that encourages seniors to schedule before plans become busy. A child campaign
-would first require confirmation that the email belongs to the appropriate
-guardian. These are targeted campaigns with their own approved copy and
-capacity plan, not a reason to change the core recall-priority order.
+- Compare three touches with four, keeping the extra touch only if incremental
+  bookings justify the added unsubscribes and complaints.
+- Measure booking conversion, completed visits, unsubscribes, complaints, and
+  replies by segment, touch, template, and send time. Track the
+  success-to-unsubscribe ratio (`bookings / unsubscribes`) alongside those
+  outcomes; opens and clicks are supporting signals where reliable.
+- Ingest replies such as “I moved,” “I use another practice,” or “contact me
+  later” as verified, structured outcomes. Ambiguous replies should go to staff
+  review.
+- Use aggregated relocation responses as one signal when evaluating new
+  locations, alongside demand, competition, and cost. Respondents are
+  self-selected, so the signal is not representative on its own.
+- Test seasonal campaigns only with appropriate contact data—for example,
+  back-to-school outreach sent to a verified guardian and holiday-period
+  outreach designed around seniors' scheduling needs.
+- Use AI to draft variants from approved facts, followed by human review. It
+  must not invent clinical claims, insurance coverage, availability, or offers.

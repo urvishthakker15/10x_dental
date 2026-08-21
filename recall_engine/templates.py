@@ -34,10 +34,10 @@ COPY = {
     ),
     "very_cold": (
         ("Are you still in the area, {first_name}?",
-         "Hi {first_name},\n\nIt has been quite a while since your last visit. If you are still local and would like to return, we would be glad to help. If not, let us know and we will help you find our partners in your area.\n\nSee appointment options: {booking_link}\n\n— {practice_name}"),
+         "Hi {first_name},\n\nIt has been quite a while since your last visit. If you are still local and would like to return, we would be glad to help. If not, no action is needed.\n\nSee appointment options: {booking_link}\n\n— {practice_name}"),
         ("Still here when you need us",
          "Hi {first_name},\n\nWhether your schedule, insurance, or location has changed, you are welcome to reach out when dental care is needed.\n\nContact {practice_name}: {booking_link}\n\n— {practice_name}"),
-        ("hey, sorry if we caught you at a bad time, but we are always here for you!",
+        ("Closing the loop for now",
          "Hi {first_name},\n\nWe will not send more reminders from this series. If you would like to return in the future, you can always schedule online.\n\nSchedule when ready: {booking_link}\n\n— {practice_name}"),
     ),
     "no_history": (
