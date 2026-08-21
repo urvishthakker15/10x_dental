@@ -105,89 +105,28 @@ python3 -m unittest discover -s tests -v
 
 Current result: **9 tests passed**.
 
-## Time-boxed shortcuts and future work
+## What I would do with more time
 
-- The CSV source is refreshed by scheduled polling; production would use source
-  change events and a booking webhook.
-- Practice name, booking link, and unsubscribe link are configured at runtime;
-  production would validate these against trusted practice configuration.
-- UI, authentication, and an always-on API are outside this CLI-focused scope.
-- Delivery analytics and template experiments are described in Part C and are
-  not included in the initial engine.
-
-### Production architecture
-
-Amazon SQS would be useful as the delivery queue, but it would not host the
-application. A practical AWS deployment would be:
-
-```text
-EventBridge Scheduler (three times daily)
-                    │
-                    ▼
-        planner/dispatcher compute
-                    │
-          Postgres transaction
-                    │
-                    ▼
-             Amazon SQS queue
-                    │
-                    ▼
-          sender workers → Resend
-                    │
-                    ▼
-          dead-letter queue after
-             exhausted retries
-```
-
-- EventBridge Scheduler would invoke the planner three times daily. The
-  planner could run as Lambda while the workload remains small, or as an ECS
-  Fargate scheduled task if profiling shows that processing larger exports
-  needs more runtime, memory, or operational control.
-- Managed Postgres would replace SQLite and remain the source of truth for
-  enrollments, `due_at` times, suppressions, and idempotency keys. Input
-  snapshots could be stored in S3.
-- The dispatcher would atomically claim due messages and put their identifiers
-  on SQS. SQS smooths bursts and lets sender concurrency be capped to protect
-  both Resend and practice capacity. Day 8 and Day 21 timing stays in Postgres:
-  an [SQS delay is limited to 15 minutes](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-delay-queues.html),
-  so SQS is not the long-term sequence scheduler.
-- Each sender would recheck the patient's current state before delivery, send
-  with the stored idempotency key, and persist the provider response. Failed
-  jobs would retry with backoff and move to a dead-letter queue after the
-  configured limit.
-- Resend and database credentials would live in
-  [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html),
-  not environment files committed with the application. Services would use
-  least-privilege roles.
-
-EventBridge Scheduler supports recurring Lambda invocations and can also run
-[scheduled ECS tasks](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/tasks-scheduled-eventbridge-scheduler.html).
-This keeps the current scheduled-job design while making each component
-independently scalable.
-
-### Measurement, alerting, and capacity
-
-Structured logs and CloudWatch metrics would cover planning, queueing,
-delivery, and business outcomes. Dashboards would include:
-
-- attempts, successful sends, failures, retries, bounces, and complaints;
-- queue depth, oldest-message age, dead-letter count, and due-message backlog;
-- bookings, unsubscribes, and success-to-unsubscribe ratio by segment and
-  sequence touch;
-- planner duration and missed runs; and
-- worker CPU, memory, duration, concurrency, database latency, and connection
-  use.
-
-CloudWatch alarms would page the on-call channel for sustained delivery-failure
-rates, any dead-letter accumulation, excessive queue age, missed planner runs,
-or unusual increases in unsubscribes or complaints. CloudWatch alarms support
-[notification actions through SNS](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_concepts.html).
-Thresholds would be based on observed baselines rather than a single arbitrary
-value.
-
-Traffic would be evened out in three layers: distribute `due_at` times across
-the day's send windows, enqueue only controlled batches, and cap sender
-concurrency and provider request rate. CPU, memory, queue age, and delivery
-latency would then determine whether to raise or lower those limits. This
-preserves the take-home system's pacing rule while avoiding one large email
-burst.
+- **Use real-time booking data.** I would replace CSV polling with a practice-
+  management integration and booking webhook so outreach stops as soon as a
+  patient schedules.
+- **Move the local system to managed infrastructure.** Postgres would replace
+  SQLite, EventBridge would run the planner, and SQS would feed due emails to
+  Lambda or ECS workers. Postgres would still own the Day 8 and Day 21 schedule;
+  SQS would buffer delivery work and prevent bursts.
+- **Secure configuration.** Practice links and settings would come from trusted
+  configuration, while Resend and database credentials would live in AWS
+  Secrets Manager with least-privilege access.
+- **Add monitoring and alerts.** I would track delivery failures, retries,
+  queue age, missed runs, bookings, unsubscribes, and results by segment and
+  touch. CloudWatch would alert the on-call team when delivery health or the
+  scheduled pipeline falls outside its normal range.
+- **Build basic staff tools.** A small authenticated interface would show the
+  backlog, active sequences, outcomes, delivery health, and pause/resume
+  controls without requiring direct CLI or database access.
+- **Learn from results.** I would compare conversion and unsubscribe rates
+  across segments, templates, touch counts, and send times, then adjust the
+  copy and pacing using those results.
+- **Tune capacity from real usage.** CPU, memory, queue depth, provider limits,
+  and appointment availability would determine worker concurrency and daily
+  send volume rather than relying permanently on the take-home defaults.
