@@ -1,14 +1,15 @@
 # Recall Outreach Engine — Take-Home Submission
 
-This document consolidates Parts A–C; Part D setup and evidence are in the
-repository README and `docs/part_d_system_design.md`.
+This document consolidates Parts A–D; detailed Part D setup and evidence are
+also available in the repository README and `docs/part_d_system_design.md`.
 
 ## Contents
 
 1. Part A — Data analysis
 2. Part B — Selection and pacing algorithm
 3. Part C — Email sequence
-4. Next steps and time-boxed scope cuts
+4. Part D — Working system
+5. Next steps and time-boxed scope cuts
 
 ## Part A — Data Analysis
 
@@ -283,17 +284,19 @@ The calculation is `(1,871 - 500) / 1,871 = 73.28%`.
 
 #### Analysis and interpretation
 
-For this recommendation, a **conversion** means a patient who receives
-outreach subsequently books an appointment. It does not mean that the patient
-has completed the appointment; completion is a separate downstream outcome to
-track.
+The 10% conversion assumption is a planning baseline, not a reason to send the
+same message to all 2,690 overdue patients. Here, conversion means booking an
+appointment after outreach; completing that appointment is a separate
+downstream outcome.
 
-At a 10% booking conversion rate, every 100 patients enrolled is expected to
-produce roughly 10 future bookings. Applied to the confirmed current backlog
-of 2,690 overdue and unbooked patients, a one-time program would imply roughly
-269 bookings. That demonstrates material upside, but it should not be sent as
-a single blast: volume must be paced to available appointment capacity and
-continued as newly overdue patients enter the pool.
+I recommend enrolling 100 patients per week, expecting about 10 bookings, and
+using a different lever for each overdue segment. Make scheduling nearly
+frictionless for recently overdue patients, rebuild relevance for patients who
+are becoming cold, test verified improvements or modest incentives when trying
+to recapture older patients, and use the coldest outreach to confirm whether
+the relationship is still relevant. This paced, segmented program is more
+useful than applying 10% to the whole backlog as if every patient had equal
+intent or should be contacted at once.
 
 #### Recommendations
 
@@ -743,6 +746,23 @@ contacted again during that window. After cooldown, only the small recontact
 allocation is eligible, with patients who have had fewer sequence attempts
 prioritized. This prevents the same people from receiving repeated campaigns
 while allowing a later, lower-frequency re-engagement attempt.
+
+## Part D — Working system
+
+The repository contains a stateful Python CLI backed by SQLite. Each scheduled
+run reloads the two CSVs, detects new bookings, creates the current weekly plan
+once, sends only due touches, and persists enrollments, suppressions, cooldowns,
+delivery attempts, and provider IDs. Atomic message claims and stored Resend
+idempotency keys prevent duplicate delivery across retries.
+
+The engine is dry-run by default; real delivery requires `--send`. It can be
+paused and resumed without losing state, and a live Resend test to a controlled
+inbox is documented in [Part D system design](docs/part_d_system_design.md).
+
+Core tests cover eligibility, Hot/Warm/Cold/Very Cold boundaries, calendar-month
+calculations, booking and opt-out transitions, cooldowns, and send idempotency.
+The current suite contains nine passing tests. Setup, dry-run commands,
+configuration, and environment variables are in the [README](README.md).
 
 ## Next steps and time-boxed scope cuts
 
