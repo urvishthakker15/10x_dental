@@ -2,10 +2,9 @@
 
 ## Architecture
 
-The deliverable is a scheduled Python CLI backed by SQLite. A server is not
-required: cron invokes the same idempotent command three times daily, and every
-run rebuilds current recall facts from the latest CSV exports before acting on
-persisted outreach state.
+The system is a scheduled Python CLI backed by SQLite. Cron can run the same
+idempotent command three times daily; each run refreshes recall facts from the
+latest CSVs before acting on saved outreach state.
 
 ```text
 patients.csv + appointments.csv
@@ -24,10 +23,9 @@ patients.csv + appointments.csv
       dry-run log or Resend API
 ```
 
-SQLite stores patients, weekly pacing windows, enrollments, three scheduled
-touches per enrollment, suppressions, cooldowns, and delivery attempts. The
-database is the system's memory; repeat runs do not recreate an existing weekly
-plan or resend a message already marked `sent`.
+SQLite stores weekly plans, enrollments, scheduled touches, suppressions,
+cooldowns, and delivery attempts. Reruns neither recreate a weekly plan nor
+resend a message already marked `sent`.
 
 ## State transitions
 
@@ -43,10 +41,9 @@ eligible ──enroll──> active
                                                    recontact eligible
 ```
 
-Each message moves from `pending` to `sending` to `sent`. The transition into
-`sending` is atomic. Every message receives a globally unique key that is saved
-with it; if a process stops after claiming the message, a later run releases
-the stale claim and retries with that same Resend idempotency key.
+Each message moves from `pending` to `sending` to `sent`. The claim is atomic,
+and retries reuse the stored Resend idempotency key. If a worker stops after
+claiming a message, a later run releases the stale claim safely.
 
 After a booking, the patient remains suppressed until that appointment becomes
 a completed visit. They can enter a new recall cycle only when that later visit
@@ -58,10 +55,8 @@ Every scheduled run ingests the newest appointment export and cancels pending
 touches for patients with a future non-cancelled booking. Eligibility is checked
 again immediately before each email is claimed.
 
-CSV polling cannot eliminate the small interval between the last export and the
-email API call. A production integration would consume booking webhooks and
-cancel pending messages immediately. The polling approach is the explicit
-time-boxed limitation for this take-home dataset.
+CSV polling leaves a small race between the latest export and the email API
+call. A booking webhook would close that gap in production.
 
 ## Safety and operations
 
@@ -74,11 +69,9 @@ time-boxed limitation for this take-home dataset.
 
 ## Real email demonstration
 
-On 2026-08-20, the final verification run sent exactly one controlled email
-through Resend using `--recipient-override` and `--delivery-limit 1`. It used
-the latest Hot-segment copy, including the derived months since last visit.
-Resend returned a provider message ID, and the engine persisted the message as
-`sent`. No synthetic dataset address received email.
+On 2026-08-20, a controlled run sent one Hot-segment email through Resend using
+`--recipient-override` and `--delivery-limit 1`. Resend returned a message ID,
+which the engine saved with the `sent` state. No dataset address received mail.
 
 ![Live email delivered through Resend](assets/resend_live_email.png)
 

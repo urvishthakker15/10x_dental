@@ -33,9 +33,8 @@ cron without recomputing or losing prior state.
 | `recall_engine/delivery.py` | Dry-run and Resend delivery adapters |
 | `recall_engine/models.py` | Typed records passed between layers |
 
-Detailed decisions and evidence:
+Detailed writeups:
 
-- [Part A to Part C analysis — single document](FINAL_TAKE_HOME_SUBMISSION.md)
 - [Part A — data analysis](docs/part_a_analysis.md)
 - [Part B — selection and pacing](docs/part_b_selection_and_pacing.md)
 - [Part C — communication strategy](docs/part_c_communication_strategy.md)
@@ -51,10 +50,9 @@ All reported numbers come from committed Python scripts grouped by purpose:
 | `analysis/part_a/` | Overdue-rate, current-overdue-share, retention, and supporting demographic analyses |
 | `analysis/part_b/` | Backlog/inflow calculations and the 12–24 month pacing simulations |
 
-Run scripts from the repository root; `python <script_path> --help` lists each
-script’s CSV and date arguments. Generated files under `analysis/**/output/`
-are reproducible and intentionally excluded from Git; the scripts themselves
-are committed.
+Run scripts from the repository root; `python <script_path> --help` lists the
+CSV and date arguments. Reproducible output under `analysis/**/output/` is
+excluded from Git.
 
 ## Setup
 
@@ -91,6 +89,7 @@ This command creates the weekly plan and logs due email without sending it:
 python3 -m recall_engine run \
   --patients /path/to/patients.csv \
   --appointments /path/to/appointments.csv \
+  --dry-run \
   --practice-name "10x Dental" \
   --booking-link "https://example.com/book" \
   --unsubscribe-link "https://example.com/unsubscribe"
@@ -171,50 +170,35 @@ The same suite also runs under pytest after `python3 -m pip install -e '.[test]'
 
 ### What I would do next
 
-- **Close the feedback loop.** Ingest booking events and inbound email replies.
-  Convert responses such as “I moved,” “I use another practice,” or “my
-  insurance changed” into verified structured outcomes. Route ambiguous
-  responses to staff instead of automatically changing patient records.
-- **Measure business and patient experience together.** Track bookings,
-  completed appointments, unsubscribes, complaints, replies, and delivery
-  failures by segment, touch, template, and send-time cohort.
-- **Experiment deliberately.** Compare three- and four-touch sequences, copy,
-  timing, subject lines, and format. Retain changes only when incremental
-  bookings justify their unsubscribe, complaint, and brand costs.
-- **Use response data beyond outreach.** Aggregated, verified relocation data
-  could inform potential practice locations alongside market demand,
-  competition, and cost. Respondents are self-selected, so this signal is not
-  representative on its own.
-- **Expand campaigns carefully.** Add approved seasonal campaigns, such as
-  back-to-school outreach to verified guardians. AI could assist with drafting
-  variants using only approved facts and human review.
-- **Productionize the system.** Replace SQLite with managed Postgres, trigger
-  planning with EventBridge Scheduler, queue due deliveries in SQS, and use
-  controlled workers for Resend. Add Secrets Manager, structured logs,
-  dashboards, retries, a dead-letter queue, and CloudWatch paging. Postgres
-  would retain long-term touch timing because SQS is the delivery queue, not
-  the sequence scheduler.
-- **Profile and tune capacity.** Monitor CPU, memory, duration, concurrency,
-  database latency, queue depth, and provider limits. Spread due times across
-  daily windows and cap concurrency to prevent bursts.
+- Ingest booking events and replies, turn clear responses into verified patient
+  outcomes, and route ambiguous replies to staff.
+- Measure bookings, completed visits, unsubscribes, complaints, and delivery
+  health by segment and touch; use controlled tests to improve copy and timing.
+- Use verified relocation responses as one input when evaluating new practice
+  locations, while accounting for the self-selected sample.
+- Move SQLite to Postgres, schedule planning with EventBridge, queue sends in
+  SQS, store secrets securely, and add retries, dashboards, and alerts.
+- Add basic authenticated staff tools, carefully approved seasonal campaigns,
+  and AI-assisted drafting limited to verified facts and human review.
+- Tune send volume and worker concurrency from appointment capacity, queue
+  depth, resource use, and provider limits.
 
 ### Scope intentionally cut for this take-home
 
-- The implementation is a stateful scheduled CLI, not a hosted UI or always-on
-  API; authentication and staff administration are omitted.
+- The implementation is a scheduled CLI; UI, authentication, and staff
+  administration are omitted.
 - CSV polling stands in for booking webhooks and source-system integrations,
   leaving a documented race window between exports.
 - Outreach is email-only. SMS and phone outreach require separate consent,
   preference, and compliance handling.
-- Templates and timing are configured in code; there is no campaign editor,
-  approval workflow, reply classifier, or experimentation platform.
+- Templates and timing live in code; there is no campaign editor, approval
+  workflow, reply classifier, or experimentation platform.
 - Booking links, availability, insurance information, practice updates, and
   the unsubscribe endpoint require verified production integrations. Sample
   URLs are placeholders; opt-outs can be demonstrated with `suppress`.
-- SQLite is appropriate locally but not for horizontally scaled workers. Cloud
-  infrastructure, deployment automation, paging, and dashboards are proposed
-  rather than provisioned.
+- SQLite is local-only; cloud infrastructure, deployment automation, paging,
+  and dashboards are proposed rather than provisioned.
 - The input contract requires only fields the engine uses; unused fields such
   as `phone` and `broken` remain optional.
-- Tests target the highest-risk eligibility, segmentation, state-transition,
-  and idempotency behavior rather than exhaustive integration or load coverage.
+- Tests target eligibility, segmentation, state transitions, and idempotency,
+  not exhaustive integration or load coverage.

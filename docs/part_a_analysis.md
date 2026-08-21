@@ -7,7 +7,7 @@ All figures are reproducible from `analysis/part_a/` and
 
 ## Assumptions and definitions
 
-| Decision | Rule | Why it is reasonable |
+| Decision | Rule | Rationale |
 | --- | --- | --- |
 | Analysis date | Use the date the script runs, with an optional `as_of_date` override that is printed in the output. | Operational runs need the current date; the override reproduces historical results. |
 | Future appointment | Any future appointment that is not cancelled means the patient is already booked. | This is the brief’s stated rule; a booked patient should not be labeled overdue for outreach. |
@@ -27,20 +27,18 @@ Initial profiling found 5,999 patient rows and 61,736 appointment rows.
   `America/Los_Angeles` conversion.
 - `appointments.operatory` is missing in 202 rows (0.33%); it is not needed
   for recall eligibility.
-- `patients.birth_date` is missing in 146 rows (2.43%), while `gender`,
-  `provider`, and `status` are each missing in only a handful of rows.
+- `patients.birth_date` is missing in 146 rows (2.43%). Missingness appears in
+  every 1,000-patient-ID range (1.90%–3.20%), so it is not isolated to one
+  import cohort. It is higher for male records (3.15%) than female records
+  (1.66%) and for Provider A (2.51%) than Provider B (0.30%), but none of these
+  fields determines recall eligibility.
 - `patients.deactivation_reason` is blank for every row, consistent with the
   file being active-only.
-- Birth-date missingness appears in every 1,000-patient-ID range
-  (1.90%–3.20%), so it does not point to one isolated historical import. It
-  is higher among male records (3.15%) than female records (1.66%), and
-  Provider A (2.51%) than Provider B (0.30%), but these dimensions do not
-  determine recall eligibility.
 - Patient ID is not a useful proxy for age: mean age varies only from 48.1 to
   50.2 across the six 1,000-ID cohorts, and the Pearson correlation between
   numeric patient ID and age is 0.006.
-- One patient has a missing provider and one has a missing status. Both will
-  be handled separately. Three patients have missing gender.
+- One patient is missing a provider, one is missing status, and three are
+  missing gender.
 - There are 21 synthetic `visit_type` labels, but each maps to exactly one of
   the five supplied `visit_category` values: hygiene, other, exam,
   restorative, or emergency. No visit type spans multiple categories.
@@ -59,9 +57,9 @@ Initial profiling found 5,999 patient rows and 61,736 appointment rows.
 
 ### Monitoring boundary
 
-The engine reports exclusion counts but does not implement alerting. Production
-would alert when missing-provider or missing-status rates materially exceed
-their established baseline.
+The engine reports exclusion counts but does not alert on them. In production,
+I would alert when missing-provider or missing-status rates rise materially
+above their baseline.
 
 ## Derived last-visit status (required first step)
 
@@ -92,32 +90,24 @@ sequence and are reported for operational review.
 
 ### Analysis and interpretation
 
-We define a healthy recall cadence as two consecutive completed appointments
-within six calendar months. Once a patient reaches that cadence, each later
-appointment interval is an opportunity to either stay on schedule or slip past
-six months.
+A patient enters healthy cadence after two consecutive completed appointments
+within six calendar months. Every later interval is then an opportunity to
+remain on schedule or lapse. A lapse on the first opportunity is 1 / 1 (100%);
+no lapses is 0%. The practice rate pools all lapses across all observed
+post-cadence opportunities.
 
-For one patient, slipping on the first appointment after reaching healthy
-cadence is a 1 / 1 (100%) lapse rate. A patient who never slips after reaching
-healthy cadence has a 0% lapse rate. For the practice-level result, we combine
-all slipped post-cadence appointments and divide them by all observed
-post-cadence appointment opportunities.
-
-A patient can return to healthy cadence after a lapse. That creates a new
-healthy-cadence episode and is intentionally counted again: if they later slip
-again, both episodes contribute to the aggregate rate.
+A lapse ends that cadence episode. Two new on-time completed visits start a new
+episode, so a patient who regains cadence and lapses again contributes both
+episodes.
 
 ### Methodology
 
 1. Group appointments by patient and order them by date.
-2. Include completed past appointments; exclude cancelled, broken, and other
-   non-completed past appointments. A future non-cancelled booking is used as
-   the known next appointment for the final interval.
-3. Mark a patient as on healthy cadence after two consecutive completed
-   appointments within six calendar months.
-4. Starting with the next appointment, count each interval over six months as
-   a lapse and each interval within six months as on schedule.
-5. Calculate:
+2. Keep completed past appointments; use a future non-cancelled booking as the
+   known final appointment. Exclude all other past appointments.
+3. Enter healthy cadence after two consecutive completed visits within six
+   calendar months; end the episode after a lapse and allow later re-entry.
+4. Calculate:
 
    ```text
    slipped post-cadence intervals / observed post-cadence intervals
@@ -154,22 +144,14 @@ The calculation is `7,434 / 32,630 = 22.78%`.
 
 ### Analysis and interpretation
 
-Nearly half of the active patient base (44.86%) has a documented last visit
-more than six months ago and no future appointment to bring them back. This is
-a substantial recall backlog, not a small edge case that can be handled only
-by waiting for routine scheduling.
+Nearly half of the active patient base (44.86%) is confirmed overdue and
+unbooked, making recall outreach a material opportunity. Another 1,715 active
+patients have no completed visit or future booking; because the export cannot
+establish their last visit, they remain a separate lower-confidence pool.
 
-This percentage is deliberately limited to patients whose last visit can be
-established from the export. An additional 1,715 active patients have neither
-a completed visit nor a future booking; they are not labeled overdue because
-we cannot tell whether they are new, have history outside the export, or are
-otherwise lapsed. They should be treated as a separate operational-review
-cohort rather than folded into the recall backlog without evidence.
-
-The result supports a paced, ongoing outreach program: the confirmed backlog
-is large enough to matter, but enrolling everyone at once would create an
-unsustainable one-time spike. The pacing recommendation is developed in Part
-B using this backlog together with the measured newly-overdue inflow.
+The backlog justifies ongoing outreach, but its size also argues against a
+one-time send. Part B combines it with newly-overdue inflow to set a sustainable
+weekly pace.
 
 ### Methodology
 
@@ -187,12 +169,9 @@ B using this backlog together with the measured newly-overdue inflow.
 
 ### Notes
 
-- Patients with no completed visit and no future booking are not included in
-  the overdue numerator because the export does not establish a last-visit
-  date for them.
-- The calculation is implemented in
-  `analysis/part_a/calculate_current_overdue_share.py` and uses the current date by
-  default.
+The calculation is implemented in
+`analysis/part_a/calculate_current_overdue_share.py` and uses the current date
+by default.
 
 ### Result
 
@@ -212,15 +191,10 @@ The calculation is `2,690 / 5,997 = 44.86%`.
 
 ### Analysis and interpretation
 
-For an established dental practice, retention is most useful as a yearly
-measure; month-over-month retention would be more appropriate for a new
-practice with little history. For this exercise, we use a rolling 12-month
-window from the same date last year through the current date.
-
-A retained patient is an active patient who was served during that 12-month
-window and whose first **observed** completed visit occurred before the
-window. Patients first observed during the window are treated as new-to-the-
-export for this calculation and are excluded from the retained numerator.
+For an established practice, I use a rolling 12-month measure rather than
+month-over-month retention. A retained patient is active, completed a visit in
+the window, and had a first **observed** completed visit before the window.
+Patients first observed during the window count as new-to-the-export.
 
 ### Methodology
 
@@ -242,8 +216,7 @@ export for this calculation and are excluded from the retained numerator.
 
 ### Notes
 
-- This is a rolling 12-month metric, so it avoids comparing a partial calendar
-  year with a full year and should be recalculated as time moves forward.
+- A rolling window avoids comparing a partial calendar year with a full year.
 - “First-time” means first observed in this export. A patient with completed
   care before the export began could be classified as first-time by this
   method, so the metric should be read as an estimate.
@@ -281,9 +254,8 @@ using a different lever for each overdue segment. Make scheduling nearly
 frictionless for recently overdue patients, rebuild relevance for patients who
 are becoming cold, test verified improvements or modest incentives when trying
 to recapture older patients, and use the coldest outreach to confirm whether
-the relationship is still relevant. This paced, segmented program is more
-useful than applying 10% to the whole backlog as if every patient had equal
-intent or should be contacted at once.
+the relationship is still relevant. This approach does not assume every
+patient has equal intent or should be contacted at once.
 
 ### Recommendations
 
@@ -309,9 +281,6 @@ intent or should be contacted at once.
 
 ### Notes
 
-- The supplied dataset does not include a patient’s usual clinician, current
-  provider capacity, appointment-slot inventory, insurance information, low
-  season, practice upgrades, locations, or incentives. Those inputs would be
-  required to operationalize the segment-specific recommendations above.
-- The final sequence copy, touch spacing, and re-contact policy are developed
-  in Part C; sustainable enrollment volume is developed in Part B.
+The export does not include usual clinician, open slots, insurance, low season,
+practice upgrades, locations, or incentives. These recommendations use those
+inputs only when verified at send time.

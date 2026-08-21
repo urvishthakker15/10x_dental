@@ -1,7 +1,8 @@
 # Recall Outreach Engine — Take-Home Submission
 
-This document consolidates Parts A–D; detailed Part D setup and evidence are
-also available in the repository README and `docs/part_d_system_design.md`.
+This document consolidates Parts A–D. Setup instructions and detailed Part D
+evidence are also available in the repository README and
+`docs/part_d_system_design.md`.
 
 ## Contents
 
@@ -40,20 +41,18 @@ Initial profiling found 5,999 patient rows and 61,736 appointment rows.
   `America/Los_Angeles` conversion.
 - `appointments.operatory` is missing in 202 rows (0.33%); it is not needed
   for recall eligibility.
-- `patients.birth_date` is missing in 146 rows (2.43%), while `gender`,
-  `provider`, and `status` are each missing in only a handful of rows.
+- `patients.birth_date` is missing in 146 rows (2.43%). Missingness appears in
+  every 1,000-patient-ID range (1.90%–3.20%), so it is not isolated to one
+  import cohort. It is higher for male records (3.15%) than female records
+  (1.66%) and for Provider A (2.51%) than Provider B (0.30%), but none of these
+  fields determines recall eligibility.
 - `patients.deactivation_reason` is blank for every row, consistent with the
   file being active-only.
-- Birth-date missingness appears in every 1,000-patient-ID range
-  (1.90%–3.20%), so it does not point to one isolated historical import. It
-  is higher among male records (3.15%) than female records (1.66%), and
-  Provider A (2.51%) than Provider B (0.30%), but these dimensions do not
-  determine recall eligibility.
 - Patient ID is not a useful proxy for age: mean age varies only from 48.1 to
   50.2 across the six 1,000-ID cohorts, and the Pearson correlation between
   numeric patient ID and age is 0.006.
-- One patient has a missing provider and one has a missing status. Both will
-  be handled separately. Three patients have missing gender.
+- One patient is missing a provider, one is missing status, and three are
+  missing gender.
 - There are 21 synthetic `visit_type` labels, but each maps to exactly one of
   the five supplied `visit_category` values: hygiene, other, exam,
   restorative, or emergency. No visit type spans multiple categories.
@@ -72,9 +71,9 @@ Initial profiling found 5,999 patient rows and 61,736 appointment rows.
 
 #### Monitoring boundary
 
-The engine reports exclusion counts but does not implement alerting. Production
-would alert when missing-provider or missing-status rates materially exceed
-their established baseline.
+The engine reports exclusion counts but does not alert on them. In production,
+I would alert when missing-provider or missing-status rates rise materially
+above their baseline.
 
 ### Derived last-visit status (required first step)
 
@@ -105,32 +104,24 @@ sequence and are reported for operational review.
 
 #### Analysis and interpretation
 
-We define a healthy recall cadence as two consecutive completed appointments
-within six calendar months. Once a patient reaches that cadence, each later
-appointment interval is an opportunity to either stay on schedule or slip past
-six months.
+A patient enters healthy cadence after two consecutive completed appointments
+within six calendar months. Every later interval is then an opportunity to
+remain on schedule or lapse. A lapse on the first opportunity is 1 / 1 (100%);
+no lapses is 0%. The practice rate pools all lapses across all observed
+post-cadence opportunities.
 
-For one patient, slipping on the first appointment after reaching healthy
-cadence is a 1 / 1 (100%) lapse rate. A patient who never slips after reaching
-healthy cadence has a 0% lapse rate. For the practice-level result, we combine
-all slipped post-cadence appointments and divide them by all observed
-post-cadence appointment opportunities.
-
-A patient can return to healthy cadence after a lapse. That creates a new
-healthy-cadence episode and is intentionally counted again: if they later slip
-again, both episodes contribute to the aggregate rate.
+A lapse ends that cadence episode. Two new on-time completed visits start a new
+episode, so a patient who regains cadence and lapses again contributes both
+episodes.
 
 #### Methodology
 
 1. Group appointments by patient and order them by date.
-2. Include completed past appointments; exclude cancelled, broken, and other
-   non-completed past appointments. A future non-cancelled booking is used as
-   the known next appointment for the final interval.
-3. Mark a patient as on healthy cadence after two consecutive completed
-   appointments within six calendar months.
-4. Starting with the next appointment, count each interval over six months as
-   a lapse and each interval within six months as on schedule.
-5. Calculate:
+2. Keep completed past appointments; use a future non-cancelled booking as the
+   known final appointment. Exclude all other past appointments.
+3. Enter healthy cadence after two consecutive completed visits within six
+   calendar months; end the episode after a lapse and allow later re-entry.
+4. Calculate:
 
    ```text
    slipped post-cadence intervals / observed post-cadence intervals
@@ -167,22 +158,14 @@ The calculation is `7,434 / 32,630 = 22.78%`.
 
 #### Analysis and interpretation
 
-Nearly half of the active patient base (44.86%) has a documented last visit
-more than six months ago and no future appointment to bring them back. This is
-a substantial recall backlog, not a small edge case that can be handled only
-by waiting for routine scheduling.
+Nearly half of the active patient base (44.86%) is confirmed overdue and
+unbooked, making recall outreach a material opportunity. Another 1,715 active
+patients have no completed visit or future booking; because the export cannot
+establish their last visit, they remain a separate lower-confidence pool.
 
-This percentage is deliberately limited to patients whose last visit can be
-established from the export. An additional 1,715 active patients have neither
-a completed visit nor a future booking; they are not labeled overdue because
-we cannot tell whether they are new, have history outside the export, or are
-otherwise lapsed. They should be treated as a separate operational-review
-cohort rather than folded into the recall backlog without evidence.
-
-The result supports a paced, ongoing outreach program: the confirmed backlog
-is large enough to matter, but enrolling everyone at once would create an
-unsustainable one-time spike. The pacing recommendation is developed in Part
-B using this backlog together with the measured newly-overdue inflow.
+The backlog justifies ongoing outreach, but its size also argues against a
+one-time send. Part B combines it with newly-overdue inflow to set a sustainable
+weekly pace.
 
 #### Methodology
 
@@ -200,12 +183,9 @@ B using this backlog together with the measured newly-overdue inflow.
 
 #### Notes
 
-- Patients with no completed visit and no future booking are not included in
-  the overdue numerator because the export does not establish a last-visit
-  date for them.
-- The calculation is implemented in
-  `analysis/part_a/calculate_current_overdue_share.py` and uses the current date by
-  default.
+The calculation is implemented in
+`analysis/part_a/calculate_current_overdue_share.py` and uses the current date
+by default.
 
 #### Result
 
@@ -225,15 +205,10 @@ The calculation is `2,690 / 5,997 = 44.86%`.
 
 #### Analysis and interpretation
 
-For an established dental practice, retention is most useful as a yearly
-measure; month-over-month retention would be more appropriate for a new
-practice with little history. For this exercise, we use a rolling 12-month
-window from the same date last year through the current date.
-
-A retained patient is an active patient who was served during that 12-month
-window and whose first **observed** completed visit occurred before the
-window. Patients first observed during the window are treated as new-to-the-
-export for this calculation and are excluded from the retained numerator.
+For an established practice, I use a rolling 12-month measure rather than
+month-over-month retention. A retained patient is active, completed a visit in
+the window, and had a first **observed** completed visit before the window.
+Patients first observed during the window count as new-to-the-export.
 
 #### Methodology
 
@@ -255,8 +230,7 @@ export for this calculation and are excluded from the retained numerator.
 
 #### Notes
 
-- This is a rolling 12-month metric, so it avoids comparing a partial calendar
-  year with a full year and should be recalculated as time moves forward.
+- A rolling window avoids comparing a partial calendar year with a full year.
 - “First-time” means first observed in this export. A patient with completed
   care before the export began could be classified as first-time by this
   method, so the metric should be read as an estimate.
@@ -294,9 +268,8 @@ using a different lever for each overdue segment. Make scheduling nearly
 frictionless for recently overdue patients, rebuild relevance for patients who
 are becoming cold, test verified improvements or modest incentives when trying
 to recapture older patients, and use the coldest outreach to confirm whether
-the relationship is still relevant. This paced, segmented program is more
-useful than applying 10% to the whole backlog as if every patient had equal
-intent or should be contacted at once.
+the relationship is still relevant. This approach does not assume every
+patient has equal intent or should be contacted at once.
 
 #### Recommendations
 
@@ -322,12 +295,9 @@ intent or should be contacted at once.
 
 #### Notes
 
-- The supplied dataset does not include a patient’s usual clinician, current
-  provider capacity, appointment-slot inventory, insurance information, low
-  season, practice upgrades, locations, or incentives. Those inputs would be
-  required to operationalize the segment-specific recommendations above.
-- The final sequence copy, touch spacing, and re-contact policy are developed
-  in Part C; sustainable enrollment volume is developed in Part B.
+The export does not include usual clinician, open slots, insurance, low season,
+practice upgrades, locations, or incentives. These recommendations use those
+inputs only when verified at send time.
 
 ## Part B — Selection & Pacing Algorithm
 
@@ -342,11 +312,10 @@ of emails.
 
 ### Objective and conversion definition
 
-The algorithm continuously prioritizes eligible patients, enrolls only a
-controlled weekly volume, and updates decisions from persisted outreach state.
-
-For this plan, a **conversion** is a contacted patient who later books an
-appointment. Appointment completion remains a separate downstream measure.
+The algorithm enrolls a controlled weekly cohort, continuously finds newly
+overdue patients, and uses persisted state to avoid duplicate outreach. A
+**conversion** is a contacted patient who books; attendance is tracked
+separately.
 
 ### Candidate pools
 
@@ -385,9 +354,8 @@ allowed that week.
 | 5% | Cooled-down non-responders | A prior sequence finished without booking/reply and the patient has passed cooldown. Prioritize the lowest `sequence_attempt_count` first. |
 | 5% | No-history prospecting | Low-frequency, separately worded first-visit/reactivation outreach. |
 
-This protects newly overdue patients from being crowded out by older backlog or
-prior non-responders, while preserving a small path to test potential value in
-the ambiguous no-history cohort.
+This keeps new overdue patients from being crowded out while reserving small,
+controlled allocations for recontacts and the ambiguous no-history group.
 
 ### State, tracking, and suppression
 
@@ -407,8 +375,7 @@ cancels all pending touches and sets the status to `booked`. A non-responder
 enters `cooldown` when their sequence completes; after three months, they can
 compete only for the 5% re-contact allocation. Candidates are ordered by the
 fewest prior sequence attempts, then the oldest eligible completion date. This
-prevents repeatedly
-contacting the same person while still allowing controlled reactivation.
+limits repeated contact while allowing controlled reactivation.
 
 Patients who book are not contacted again while booked or on schedule. They
 can enter a future recall cycle only after a later completed visit and a new
@@ -416,7 +383,7 @@ six-month overdue period with no future booking.
 
 ### Ongoing run logic
 
-Every daily or weekly run:
+Each scheduled run:
 
 1. Ingests the latest CSV data and derives current recall state.
 2. Suppresses any active sequence with a new booking, opt-out, or suppression.
@@ -441,13 +408,10 @@ Every daily or weekly run:
 
 ### Initial pacing recommendation
 
-Set an initial ceiling of **100 enrollments/week**. With 10% booking
-conversion, that produces roughly **10 expected bookings/week**, equivalent to
-about 9.7% of the historical average weekly completed appointment volume
-(10 / 103.3). We explicitly assume the practice can absorb ten incremental
-recall bookings per week. The export does not contain actual open-slot data, so
-this is a configurable planning assumption that must be reduced if operations
-cannot support it.
+Set an initial ceiling of **100 enrollments/week**. At 10% conversion, that is
+about **10 bookings/week**, or 9.7% of the historical average completed volume
+(10 / 103.3). I assume the practice can absorb those incremental bookings; the
+ceiling remains configurable because the export has no open-slot data.
 
 | Pool | Enrollments/week |
 | --- | ---: |
@@ -472,10 +436,9 @@ net confirmed-backlog reduction = 90 enrolled - 27 newly overdue = 63/week
 estimated clearance time       = 2,690 / 63 ≈ 43 weeks (about 10 months)
 ```
 
-The confirmed backlog reaches zero in approximately week 43. Afterwards, confirmed enrollment
-scales down to roughly the 27/week inflow; together with re-contact and
-no-history streams, total ongoing activity becomes approximately 37
-enrollments/week.
+The confirmed backlog reaches zero around week 43. Confirmed enrollment then
+falls to the 27/week inflow; including recontacts and no-history prospecting,
+ongoing enrollment is about 37/week.
 
 Over 104 weeks, this scenario projects:
 
@@ -486,22 +449,20 @@ Over 104 weeks, this scenario projects:
 | Expected bookings | 646 |
 | Confirmed backlog remaining | 0 |
 
-This is a planning model, not a capacity guarantee. The weekly ceiling remains
-configurable and should be reduced when actual appointment capacity, conversion,
-delivery health, or opt-out rate indicates a lower safe volume.
+This is a planning model, not a capacity guarantee. Actual appointment
+capacity, conversion, delivery health, and opt-outs should determine the final
+ceiling.
 
 ### Age and seasonal campaigns
 
-Age bands—Child, Adult, Senior, and Unknown age—are retained for analysis and
-message appropriateness, not as core prioritization in the first algorithm.
-Back-to-school outreach for children and holiday-period support for seniors are
-future campaigns, but require confirmed guardian contacts, campaign calendars,
-and capacity data absent from this export.
+Age bands—Child, Adult, Senior, and Unknown—support message design, not core
+prioritization. Seasonal campaigns would require verified guardian contacts,
+campaign calendars, and capacity data absent from this export.
 
 ### Reproducibility
 
-- `analysis/part_b/analyze_pacing_inputs.py` derives backlog, inflow, and throughput
-  inputs from the two CSV files.
+- `analysis/part_b/analyze_pacing_inputs.py` derives backlog, inflow, and
+  throughput inputs from the two CSV files.
 - `analysis/part_b/simulate_pacing.py` runs the configurable 12–24 month projection.
 - `analysis/part_b/simulate_segmented_pacing.py` applies the 90% / 5% / 5% policy to
   the CSV-derived starting pools, ages candidates between segments, tracks
@@ -527,25 +488,17 @@ and capacity data absent from this export.
 
 ### Scope and communication principles
 
-This deliverable is an **email-only** recall sequence. The supplied data also
-contains phone numbers, but SMS and phone outreach are intentionally out of
-scope: production use would require separate consent, channel-preference, and
-compliance handling. A phone number is not treated as permission to text or
-call.
+This is an **email-only** sequence. A phone number is not treated as permission
+to call or text; those channels need separate consent and preference handling.
 
-Every email uses the patient's first name when available, a verified booking
-link, and a single clear call to action. The emails are deliberately short:
-the first explains why the practice is reaching out, the second removes booking
-friction, and the third respectfully closes the current attempt. Each email
-includes the practice's standard unsubscribe link in its footer. The system
-immediately suppresses remaining touches if the patient books, replies, opts
-out, becomes ineligible, or receives a future non-cancelled appointment.
+Each email uses the patient’s first name, one booking link, one call to action,
+and a visible unsubscribe link. Touch 1 explains the outreach, Touch 2 removes
+booking friction, and Touch 3 closes the attempt respectfully. A booking,
+opt-out, suppression, or future non-cancelled appointment cancels the remaining
+touches.
 
-The copy uses the patient’s overdue segment, rather than clinical claims or
-assumptions about the exact kind of their last visit. This matters because the
-analysis treats any relevant completed appointment as a visit for recall
-purposes; it cannot safely promise that the patient’s last appointment was a
-cleaning.
+Copy changes by overdue segment but avoids claims about the patient’s last
+procedure. The export supports “last visit,” not “last cleaning.”
 
 ### Sequence design and rationale
 
@@ -554,14 +507,12 @@ Each enrolled patient receives up to three emails:
 | Touch | Timing | Purpose |
 | --- | --- | --- |
 | 1 | Day 0 | Explain the reason for contact and invite booking. |
-| 2 | Day 7–10 | Make the next action as easy as possible. |
+| 2 | Day 8 | Make the next action as easy as possible. |
 | 3 | Day 21 | Provide a respectful final reminder and close the sequence. |
 
-Three touches balance recall visibility with patient experience. A one-week
-gap gives the first message time to be seen; the final touch is delayed so it
-does not feel like repeated pressure. A fourth touch is not used in the
-initial sequence because it adds little distinct value; it would be tested
-only if engagement data supports it.
+Three touches provide multiple chances to respond without crowding the inbox.
+The first follow-up waits about a week; the final note arrives on Day 21 and
+then stops. A fourth touch belongs in an experiment, not the default sequence.
 
 The message becomes less conversion-oriented as the patient becomes more
 lapsed:
@@ -570,21 +521,21 @@ lapsed:
 | --- | --- | --- |
 | Hot | More than 6 but less than 9 months | Make a routine return easy to schedule. |
 | Warm | 9 to less than 18 months | Rebuild intent with concise preventive-care context. |
-| Cold | 18 to less than 36 months | Re-engage with verified practice updates and insurance-access information. |
-| Very cold | 36+ months | Confirm continued relevance and permission to stay in touch; a booking is a secondary outcome. |
+| Cold | 18 to less than 36 months | Re-engage around changes in insurance, location, or schedule. |
+| Very cold | 36+ months | Confirm continued relevance; a booking is a secondary outcome. |
 
-Only facts that the practice can verify at send time—such as accepted insurers,
-new locations, available appointments, or a specific offer—may be inserted
-into a template.
+Any insurer, location, availability, or offer mentioned in production must be
+verified at send time.
 
 ### Email templates
 
-Replace bracketed fields only with verified, current values. All messages use
-the standard footer: `Unsubscribe from recall emails`.
+Fill template fields only with verified, current values. Every message ends
+with `Unsubscribe from recall emails`.
 
 #### Hot — 6–9 months overdue
 
 **Touch 1 — Day 0**
+
 **Subject:** Time to schedule your next visit, {{first_name}}
 
 Hi {{first_name}},
@@ -592,32 +543,34 @@ Hi {{first_name}},
 Our records show it has been about {{months_since_last_visit}} months since your
 last visit.
 
-It’s time to schedule your next routine dental visit. We have appointments
-available over the next two weeks.
+It’s a good time to schedule your next routine dental visit. You can view
+available times online.
 
 [Schedule your visit]({{booking_link}})
 
 — {{practice_name}}
 
-**Touch 2 — Day 7–10**
-**Subject:** Find a time that works for you
+**Touch 2 — Day 8**
+
+**Subject:** A quick follow-up on your next visit
 
 Hi {{first_name}},
 
-Would an appointment on {{suggested_slot}} work for you? If not, our online
-schedule makes it easy to choose another time.
+Just checking in—our online schedule makes it easy to choose a time that works
+for you.
 
 [Choose an appointment]({{booking_link}})
 
 — {{practice_name}}
 
 **Touch 3 — Day 21**
+
 **Subject:** We’ll leave the next step with you
 
 Hi {{first_name}},
 
-Regular dental visits are an important part of ongoing oral health. We’ll pause
-these reminders for now, but whenever you’re ready, we’d be glad to see you.
+We’ll pause these reminders after today. Whenever you’re ready for your next
+visit, we’d be glad to see you.
 
 [Schedule your visit]({{booking_link}})
 
@@ -626,36 +579,38 @@ these reminders for now, but whenever you’re ready, we’d be glad to see you.
 #### Warm — 9–18 months overdue
 
 **Touch 1 — Day 0**
+
 **Subject:** Let’s help you get back on track
 
 Hi {{first_name}},
 
-It has been a while since your last visit with {{practice_name}}. Routine
-preventive care can help you stay on top of your dental health.
+It’s been a while since we last saw you. Life gets busy, and scheduling your
+next visit is a simple way to get back on track.
 
 [Book your next visit]({{booking_link}})
 
 — {{practice_name}}
 
-**Touch 2 — Day 7–10**
+**Touch 2 — Day 8**
+
 **Subject:** A quick way to schedule
 
 Hi {{first_name}},
 
-Getting back in is simple—choose a time online, and we’ll take care of the
-rest. We currently have {{availability_window}} available.
+Choose a time online that works for you, and we’ll take care of the rest.
 
 [View available times]({{booking_link}})
 
 — {{practice_name}}
 
 **Touch 3 — Day 21**
+
 **Subject:** Here when you’re ready
 
 Hi {{first_name}},
 
-This is our last reminder in this series. If now is not the right time, that’s
-okay; you can schedule with us whenever it is.
+This is our last reminder for now. If the timing isn’t right, that’s okay—we’ll
+be here whenever you’re ready.
 
 [Schedule a visit]({{booking_link}})
 
@@ -664,37 +619,40 @@ okay; you can schedule with us whenever it is.
 #### Cold — 18–36 months overdue
 
 **Touch 1 — Day 0**
+
 **Subject:** A lot can change—let’s reconnect
 
 Hi {{first_name}},
 
-It has been some time since we saw you. We now offer [verified practice update]
-and work with [verified insurance information]. We’d be happy to welcome you
-back.
+It’s been some time since we saw you, and we wanted to check in. If your
+insurance, location, or schedule has changed, our team can help make returning
+simple.
 
 [See appointment times]({{booking_link}})
 
 — {{practice_name}}
 
-**Touch 2 — Day 7–10**
+**Touch 2 — Day 8**
+
 **Subject:** Your next visit can start here
 
 Hi {{first_name}},
 
-If insurance, location, or scheduling has changed for you, our team can help.
-We have [verified availability or offer] for returning patients.
+We’d be happy to welcome you back. Choose a time online, and our team will take
+care of the rest.
 
 [Book an appointment]({{booking_link}})
 
 — {{practice_name}}
 
 **Touch 3 — Day 21**
+
 **Subject:** We’ll pause reminders for now
 
 Hi {{first_name}},
 
-We know circumstances change. We’ll pause these reminders now, but if you’d
-like to return, we’re here to help you find a time that works.
+We know circumstances change, so we’ll pause these reminders after today. If
+you’d like to return, we’re here to help.
 
 [Reconnect with us]({{booking_link}})
 
@@ -703,36 +661,40 @@ like to return, we’re here to help you find a time that works.
 #### Very cold — more than 36 months overdue
 
 **Touch 1 — Day 0**
+
 **Subject:** Are you still in the area, {{first_name}}?
 
 Hi {{first_name}},
 
-It has been quite a while since your last visit. If you are still local and
-would like to return, we would be glad to help. If not, no action is needed.
+It’s been quite a while since your last visit, and we wanted to check whether
+you’re still in the area. If you’d like to return, we’d be glad to help. If
+you’ve moved or found another practice, we completely understand.
 
 [See appointment options]({{booking_link}})
 
 — {{practice_name}}
 
-**Touch 2 — Day 7–10**
+**Touch 2 — Day 8**
+
 **Subject:** Still here when you need us
 
 Hi {{first_name}},
 
-Whether your schedule, insurance, or location has changed, you are welcome to
-reach out when dental care is needed.
+If your schedule, insurance, or location has changed, you’re still welcome to
+reconnect with our team whenever the time is right.
 
 [Contact {{practice_name}}]({{booking_link}})
 
 — {{practice_name}}
 
 **Touch 3 — Day 21**
-**Subject:** Closing this reminder series
+
+**Subject:** Closing the loop for now
 
 Hi {{first_name}},
 
-We will not send more reminders from this series. If you would like to return
-in the future, you can always schedule online.
+We don’t want to crowd your inbox, so this is our last message in this series.
+If you’d like to return in the future, we’d be happy to hear from you.
 
 [Schedule when ready]({{booking_link}})
 
@@ -740,83 +702,59 @@ in the future, you can always schedule online.
 
 ### After the final touch
 
-No response after the final touch marks the sequence as `completed_no_response`
-and starts the three-month cooldown defined in Part B. The patient is not
-contacted again during that window. After cooldown, only the small recontact
-allocation is eligible, with patients who have had fewer sequence attempts
-prioritized. This prevents the same people from receiving repeated campaigns
-while allowing a later, lower-frequency re-engagement attempt.
+No response marks the sequence `completed_no_response` and starts a three-month
+cooldown. Afterward, the patient may enter only the 5% recontact pool; fewer
+prior attempts receive priority. This allows low-frequency re-engagement
+without repeatedly targeting the same people.
 
 ## Part D — Working system
 
-The repository contains a stateful Python CLI backed by SQLite. Each scheduled
-run reloads the two CSVs, detects new bookings, creates the current weekly plan
-once, sends only due touches, and persists enrollments, suppressions, cooldowns,
-delivery attempts, and provider IDs. Atomic message claims and stored Resend
-idempotency keys prevent duplicate delivery across retries.
+The repository contains a scheduled Python CLI backed by SQLite. Each run
+reloads both CSVs, cancels outreach after new bookings, creates the current
+weekly plan once, and sends only due touches. SQLite persists enrollments,
+messages, suppressions, cooldowns, attempts, and provider IDs across runs.
 
-The engine is dry-run by default; real delivery requires `--send`. It can be
-paused and resumed without losing state, and a live Resend test to a controlled
-inbox is documented in [Part D system design](docs/part_d_system_design.md).
+Atomic claims and stored Resend idempotency keys prevent duplicate sends.
+Delivery is dry-run by default, and the system can pause or resume without
+losing state.
 
-Core tests cover eligibility, Hot/Warm/Cold/Very Cold boundaries, calendar-month
-calculations, booking and opt-out transitions, cooldowns, and send idempotency.
-The current suite contains nine passing tests. Setup, dry-run commands,
-configuration, and environment variables are in the [README](README.md).
+Nine unit tests cover eligibility, segment boundaries, calendar-month
+calculations, booking and opt-out transitions, cooldowns, and idempotency. A
+controlled Resend delivery is shown in
+[Part D system design](docs/part_d_system_design.md); setup and run commands are
+in the [README](README.md).
+
 
 ## Next steps and time-boxed scope cuts
 
 ### What I would do next
 
-- **Close the feedback loop.** Ingest booking events and inbound email replies
-  instead of relying only on periodic CSV exports. Responses such as “I moved,”
-  “I use another practice,” “contact me later,” or “my insurance changed” would
-  become verified, structured outcomes that stop unsuitable follow-ups and make
-  later conversations more relevant. Ambiguous replies would go to staff
-  review rather than automatically changing patient records.
-- **Measure business and patient-experience outcomes together.** Track booking
-  conversion, unsubscribe rate, success-to-unsubscribe ratio, delivery
-  failures, complaints, replies, and completed appointments. Compare results by
-  overdue segment, touch, template variant, and send-time cohort.
-- **Experiment deliberately.** Test the three-touch sequence against a
-  four-touch version and retain the extra message only when incremental
-  bookings justify its unsubscribe, complaint, and brand costs. Test copy,
-  timing, subject lines, and formatting with adequate sample sizes and clear
-  guardrails.
-- **Use response data for broader decisions.** Aggregated, verified relocation
-  responses could contribute evidence when evaluating new practice locations.
-  This would remain one input alongside market demand, competition, and cost
-  because respondents are a self-selected sample.
-- **Expand campaigns carefully.** Add approved seasonal campaigns, such as
-  back-to-school outreach sent to verified guardians and holiday-period
-  campaigns for seniors. AI could assist with drafting variants, but only from
-  approved facts and with human review.
-- **Productionize the system.** Replace SQLite with managed Postgres, trigger
-  the planner with EventBridge Scheduler, place due deliveries on SQS, and use
-  controlled workers to call Resend. Store credentials in AWS Secrets Manager
-  and add structured logs, dashboards, retries, a dead-letter queue, and
-  CloudWatch paging for delivery failures, queue age, missed runs, and unusual
-  unsubscribe or complaint rates. Long-term touch timing would remain in
-  Postgres because SQS is a delivery queue, not the sequence scheduler.
-- **Profile and tune capacity.** Monitor worker CPU, memory, duration,
-  concurrency, database latency, queue depth, and provider rate limits.
-  Distribute due times across daily windows and cap concurrency to avoid burst
-  traffic.
+- Ingest booking events and replies, convert clear responses into verified
+  patient outcomes, and route ambiguous replies to staff.
+- Measure bookings, completed visits, unsubscribes, complaints, replies, and
+  delivery health by segment, touch, template, and send time.
+- Compare three- and four-touch sequences. Keep an extra touch only when its
+  incremental bookings justify the added unsubscribes and complaints.
+- Use verified relocation responses as one signal when evaluating new practice
+  locations, alongside demand, competition, and cost.
+- Move SQLite to Postgres, schedule planning with EventBridge, queue sends in
+  SQS, store secrets securely, and add retries, dashboards, and alerts.
+- Add basic authenticated staff tools and carefully approved seasonal
+  campaigns. AI may help draft variants from verified facts, with human review.
+- Tune send volume and worker concurrency from appointment capacity, queue
+  depth, resource use, and provider limits.
 
-### Scope intentionally cut for this take-home
+### Scope intentionally cut
 
-- The deliverable is a stateful scheduled CLI rather than a hosted UI or
-  always-on API; authentication and staff-facing administration are omitted.
-- CSV polling stands in for production booking webhooks and source-system
-  integrations, leaving a documented race window between exports.
-- Outreach is email-only. SMS and phone outreach require separate consent,
-  preference, and compliance handling.
-- Templates and sequence timing are configured in code; there is no campaign
-  editor, approval workflow, automatic reply classification, or experimentation
-  platform.
-- SQLite is appropriate for a local demonstration but not for horizontally
-  scaled workers. Cloud infrastructure, deployment automation, paging, and
-  operational dashboards are proposed rather than provisioned.
-- Tests focus on the highest-risk logic—eligibility, segmentation, enrollment,
-  booking and opt-out transitions, cooldowns, and idempotency—rather than
-  exhaustive integration or load coverage.
+- CSV polling replaces booking webhooks, leaving a documented race between an
+  export and an email send.
+- The product is an email-only scheduled CLI; UI, authentication, SMS/phone
+  consent handling, and staff workflows are out of scope.
+- Templates and timing live in code; there is no campaign editor, approval
+  workflow, reply classifier, or experimentation platform.
+- Booking links, availability, insurance information, practice updates, and
+  unsubscribe handling require verified production integrations.
+- SQLite and local scheduling demonstrate statefulness but do not provide
+  horizontally scaled production infrastructure.
+- Tests focus on eligibility, segmentation, state transitions, and idempotency,
+  not exhaustive integration or load coverage.
