@@ -271,17 +271,19 @@ The calculation is `(1,871 - 500) / 1,871 = 73.28%`.
 
 ### Analysis and interpretation
 
-For this recommendation, a **conversion** means a patient who receives
-outreach subsequently books an appointment. It does not mean that the patient
-has completed the appointment; completion is a separate downstream outcome to
-track.
+The 10% conversion assumption is a planning baseline, not a reason to send the
+same message to all 2,690 overdue patients. Here, conversion means booking an
+appointment after outreach; completing that appointment is a separate
+downstream outcome.
 
-At a 10% booking conversion rate, every 100 patients enrolled is expected to
-produce roughly 10 future bookings. Applied to the confirmed current backlog
-of 2,690 overdue and unbooked patients, a one-time program would imply roughly
-269 bookings. That demonstrates material upside, but it should not be sent as
-a single blast: volume must be paced to available appointment capacity and
-continued as newly overdue patients enter the pool.
+I recommend enrolling 100 patients per week, expecting about 10 bookings, and
+using a different lever for each overdue segment. Make scheduling nearly
+frictionless for recently overdue patients, rebuild relevance for patients who
+are becoming cold, test verified improvements or modest incentives when trying
+to recapture older patients, and use the coldest outreach to confirm whether
+the relationship is still relevant. This paced, segmented program is more
+useful than applying 10% to the whole backlog as if every patient had equal
+intent or should be contacted at once.
 
 ### Recommendations
 

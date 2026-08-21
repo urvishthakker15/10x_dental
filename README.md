@@ -4,6 +4,9 @@ A stateful Python CLI that identifies overdue patients, enrolls a paced weekly
 cohort, and advances a three-touch email sequence through Resend. SQLite keeps
 the system idempotent across recurring runs. Delivery is dry-run by default.
 
+Part A to Part C analysis (single document):
+[Final Take-Home Submission](FINAL_TAKE_HOME_SUBMISSION.md)
+
 ## How it works
 
 Each invocation:
@@ -32,10 +35,26 @@ cron without recomputing or losing prior state.
 
 Detailed decisions and evidence:
 
+- [Part A to Part C analysis — single document](FINAL_TAKE_HOME_SUBMISSION.md)
 - [Part A — data analysis](docs/part_a_analysis.md)
 - [Part B — selection and pacing](docs/part_b_selection_and_pacing.md)
 - [Part C — communication strategy](docs/part_c_communication_strategy.md)
 - [Part D — system design and live-send proof](docs/part_d_system_design.md)
+
+## Reproducing the analysis
+
+All reported numbers come from committed Python scripts grouped by purpose:
+
+| Folder | Contents |
+| --- | --- |
+| `analysis/overall_data_analysis/` | Source profiling, timezone validation, visit-type checks, and the patient-level last-visit derivation |
+| `analysis/part_a/` | Overdue-rate, current-overdue-share, retention, and supporting demographic analyses |
+| `analysis/part_b/` | Backlog/inflow calculations and the 12–24 month pacing simulations |
+
+Run scripts from the repository root; `python <script_path> --help` lists each
+script’s CSV and date arguments. Generated files under `analysis/**/output/`
+are reproducible and intentionally excluded from Git; the scripts themselves
+are committed.
 
 ## Setup
 
