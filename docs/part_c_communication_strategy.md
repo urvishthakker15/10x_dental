@@ -73,8 +73,8 @@ Hi {{first_name}},
 Our records show it has been about {{months_since_last_visit}} months since your
 last visit.
 
-It’s a good time to schedule your next routine dental visit. You can view
-available times online.
+It’s time to schedule your next routine dental visit. We have appointments
+available over the next two weeks.
 
 [Schedule your visit]({{booking_link}})
 
@@ -82,12 +82,12 @@ available times online.
 
 **Touch 2 — Day 8**
 
-**Subject:** A quick follow-up on your next visit
+**Subject:** Find a time that works for you
 
 Hi {{first_name}},
 
-Just checking in—our online schedule makes it easy to choose a time that works
-for you.
+Would an appointment on {{suggested_slot}} work for you? If not, our online
+schedule makes it easy to choose another time.
 
 [Choose an appointment]({{booking_link}})
 
@@ -99,8 +99,8 @@ for you.
 
 Hi {{first_name}},
 
-We’ll pause these reminders after today. Whenever you’re ready for your next
-visit, we’d be glad to see you.
+Regular dental visits are an important part of ongoing oral health. We’ll pause
+these reminders for now, but whenever you’re ready, we’d be glad to see you.
 
 [Schedule your visit]({{booking_link}})
 
@@ -114,8 +114,8 @@ visit, we’d be glad to see you.
 
 Hi {{first_name}},
 
-It’s been a while since we last saw you. Life gets busy, and scheduling your
-next visit is a simple way to get back on track.
+It has been a while since your last visit with {{practice_name}}. Routine
+preventive care can help you stay on top of your dental health.
 
 [Book your next visit]({{booking_link}})
 
@@ -127,7 +127,8 @@ next visit is a simple way to get back on track.
 
 Hi {{first_name}},
 
-Choose a time online that works for you, and we’ll take care of the rest.
+Getting back in is simple—choose a time online, and we’ll take care of the
+rest. We currently have {{availability_window}} available.
 
 [View available times]({{booking_link}})
 
@@ -139,8 +140,8 @@ Choose a time online that works for you, and we’ll take care of the rest.
 
 Hi {{first_name}},
 
-This is our last reminder for now. If the timing isn’t right, that’s okay—we’ll
-be here whenever you’re ready.
+This is our last reminder in this series. If now is not the right time, that’s
+okay; you can schedule with us whenever it is.
 
 [Schedule a visit]({{booking_link}})
 
@@ -154,9 +155,9 @@ be here whenever you’re ready.
 
 Hi {{first_name}},
 
-It’s been some time since we saw you, and we wanted to check in. If your
-insurance, location, or schedule has changed, our team can help make returning
-simple.
+It has been some time since we saw you. We now offer [verified practice update]
+and work with [verified insurance information]. We’d be happy to welcome you
+back.
 
 [See appointment times]({{booking_link}})
 
@@ -168,8 +169,8 @@ simple.
 
 Hi {{first_name}},
 
-We’d be happy to welcome you back. Choose a time online, and our team will take
-care of the rest.
+If insurance, location, or scheduling has changed for you, our team can help.
+We have [verified availability or offer] for returning patients.
 
 [Book an appointment]({{booking_link}})
 
@@ -181,8 +182,8 @@ care of the rest.
 
 Hi {{first_name}},
 
-We know circumstances change, so we’ll pause these reminders after today. If
-you’d like to return, we’re here to help.
+We know circumstances change. We’ll pause these reminders now, but if you’d
+like to return, we’re here to help you find a time that works.
 
 [Reconnect with us]({{booking_link}})
 
@@ -196,9 +197,8 @@ you’d like to return, we’re here to help.
 
 Hi {{first_name}},
 
-It’s been quite a while since your last visit, and we wanted to check whether
-you’re still in the area. If you’d like to return, we’d be glad to help. If
-you’ve moved or found another practice, we completely understand.
+It has been quite a while since your last visit. If you are still local and
+would like to return, we would be glad to help. If not, no action is needed.
 
 [See appointment options]({{booking_link}})
 
@@ -210,8 +210,8 @@ you’ve moved or found another practice, we completely understand.
 
 Hi {{first_name}},
 
-If your schedule, insurance, or location has changed, you’re still welcome to
-reconnect with our team whenever the time is right.
+Whether your schedule, insurance, or location has changed, you are welcome to
+reach out when dental care is needed.
 
 [Contact {{practice_name}}]({{booking_link}})
 
@@ -223,8 +223,8 @@ reconnect with our team whenever the time is right.
 
 Hi {{first_name}},
 
-We don’t want to crowd your inbox, so this is our last message in this series.
-If you’d like to return in the future, we’d be happy to hear from you.
+We will not send more reminders from this series. If you would like to return
+in the future, you can always schedule online.
 
 [Schedule when ready]({{booking_link}})
 
