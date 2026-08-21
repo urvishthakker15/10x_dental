@@ -1,7 +1,201 @@
 # 10x Dental — Recall Outreach Engine
 
-Take-home assignment project for 10x Dental.
+A stateful Python CLI that identifies overdue patients, enrolls a paced weekly
+cohort, and advances a three-touch email sequence through Resend. SQLite keeps
+the system idempotent across recurring runs. Delivery is dry-run by default.
 
-## Status
+## How it works
 
-Project setup in progress.
+Each invocation:
+
+1. validates and joins `patients.csv` and `appointments.csv`;
+2. detects new future bookings and cancels remaining touches;
+3. creates the current week's plan once, using the Part B 90% / 5% / 5% mix;
+4. sends only messages currently due; and
+5. persists decisions, attempts, cooldowns, and provider IDs in SQLite.
+
+First touches are spread across 8am, 2pm, and 7pm over seven days. Follow-ups
+are scheduled for Days 8 and 21. The engine can be run three times daily from
+cron without recomputing or losing prior state.
+
+## Codebase map
+
+| File | Responsibility |
+| --- | --- |
+| `recall_engine/cli.py` | Commands, arguments, safe-mode selection, and output |
+| `recall_engine/eligibility.py` | CSV validation and patient-level recall derivation |
+| `recall_engine/engine.py` | Pacing, enrollment, suppression, sequence transitions, and idempotency |
+| `recall_engine/database.py` | SQLite schema and transactions |
+| `recall_engine/templates.py` | Segment-specific text and HTML email rendering |
+| `recall_engine/delivery.py` | Dry-run and Resend delivery adapters |
+| `recall_engine/models.py` | Typed records passed between layers |
+
+Detailed decisions and evidence:
+
+- [Part A — data analysis](docs/part_a_analysis.md)
+- [Part B — selection and pacing](docs/part_b_selection_and_pacing.md)
+- [Part C — communication strategy](docs/part_c_communication_strategy.md)
+- [Part D — system design and live-send proof](docs/part_d_system_design.md)
+
+## Setup
+
+Python 3.9 or newer is required. SQLite and the dry-run path use only the
+standard library.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+[ -f .env ] || cp .env.example .env
+python -m recall_engine init-db
+```
+
+Run `source .venv/bin/activate` again whenever you open a new terminal. On
+Windows PowerShell, activate it with `.venv\\Scripts\\Activate.ps1`.
+
+For real delivery, set these local `.env` values:
+
+```env
+RESEND_API_KEY=replace_with_your_key
+EMAIL_FROM=Recall Outreach <onboarding@resend.dev>
+```
+
+Use a sender on a verified domain for ordinary external recipients. `.env`,
+SQLite databases, and the supplied assignment CSVs are ignored by Git.
+
+## Run safely
+
+This command creates the weekly plan and logs due email without sending it:
+
+```bash
+python3 -m recall_engine run \
+  --patients /path/to/patients.csv \
+  --appointments /path/to/appointments.csv \
+  --practice-name "10x Dental" \
+  --booking-link "https://example.com/book" \
+  --unsubscribe-link "https://example.com/unsubscribe"
+```
+
+Dry-run does not mark a message as sent, so it can be inspected repeatedly.
+Use `--as-of 2026-08-20T08:00:00-07:00` for a reproducible historical run.
+
+## Send one controlled test
+
+Real delivery requires `--send`. Redirect and limit the run when demonstrating
+with an inbox you control:
+
+```bash
+python3 -m recall_engine run \
+  --patients /path/to/patients.csv \
+  --appointments /path/to/appointments.csv \
+  --send \
+  --recipient-override your-email@example.com \
+  --delivery-limit 1 \
+  --practice-name "10x Dental" \
+  --booking-link "https://example.com/book" \
+  --unsubscribe-link "https://example.com/unsubscribe"
+```
+
+The live delivery screenshot is in the [Part D writeup](docs/part_d_system_design.md).
+
+## Operate it
+
+```bash
+python3 -m recall_engine status
+python3 -m recall_engine pause
+python3 -m recall_engine resume
+python3 -m recall_engine suppress --patient-id PT-00001 --reason opted_out
+```
+
+Example production schedule after validating dry-run behavior:
+
+```cron
+0 8,14,19 * * * cd /path/to/repo && /usr/bin/python3 -m recall_engine run --patients /secure/patients.csv --appointments /secure/appointments.csv --practice-name "10x Dental" --booking-link "https://example.com/book" --unsubscribe-link "https://example.com/unsubscribe" --send >> /var/log/recall-engine.log 2>&1
+```
+
+## Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `RESEND_API_KEY` | None | Required only with `--send` |
+| `EMAIL_FROM` | None | Required only with `--send` |
+| `RECALL_TIME_ZONE` | `America/Los_Angeles` | Local due-date and send-slot calculations |
+| `WEEKLY_ENROLLMENT_CAPACITY` | `100` | Weekly enrollment ceiling |
+
+## Tests
+
+Test configuration is declared in `pyproject.toml`:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The same suite also runs under pytest after `python3 -m pip install -e '.[test]'`.
+
+## Assumptions
+
+| Assumption | Rationale |
+| --- | --- |
+| `is_active = true` and `status = Active` are authoritative. Missing provider or status blocks enrollment. | The export is treated as the practice’s active roster. Guessing ownership or lifecycle state could send inappropriate outreach. |
+| A future non-cancelled appointment immediately suppresses outreach. Otherwise, recall age comes from the latest completed past visit. | Someone already returning should not receive overdue reminders; cancelled and incomplete appointments are not evidence of a visit. |
+| “Overdue” means more than six calendar months, not 180 days. | This follows the business wording and handles unequal month lengths. |
+| Every completed appointment category counts toward recall cadence. | The synthetic visit labels do not contain reliable clinical detail, so the system treats any completed visit as continued engagement without calling it a cleaning. |
+| Patients without a completed visit or future booking are not labeled overdue. | The data cannot distinguish new patients from people whose history predates the export. A separate 5% weekly prospecting allocation reaches this lower-confidence group. |
+| Missing birth dates remain `Unknown`; they do not block outreach. | Age is unnecessary for recall eligibility, and patient ID has no meaningful relationship with age. Missing gender is used only as `Other` in aggregate analysis. |
+| UTC timestamps are the ordering source; calendar decisions use `America/Los_Angeles` by default. | The timezone column is empty, while UTC and wall-clock values strongly match Pacific time. The timezone remains configurable. |
+| Conversion means booking after outreach, not completing the appointment. | Booking is the immediate outcome this engine can observe; attendance is a separate downstream metric. |
+| Planning assumes 10% conversion and a ceiling of 100 enrollments per week. | That implies about 10 bookings per week versus 103.3 historical completed appointments per week; production would confirm real provider capacity before retaining the ceiling. |
+| The first sequence uses three email touches on Days 0, 8, and 21, followed by a 90-day cooldown. | This balances visibility with patient experience. A fourth touch should be tested against incremental bookings and unsubscribes. |
+
+## Next steps and time-boxed scope cuts
+
+### What I would do next
+
+- **Close the feedback loop.** Ingest booking events and inbound email replies.
+  Convert responses such as “I moved,” “I use another practice,” or “my
+  insurance changed” into verified structured outcomes. Route ambiguous
+  responses to staff instead of automatically changing patient records.
+- **Measure business and patient experience together.** Track bookings,
+  completed appointments, unsubscribes, complaints, replies, and delivery
+  failures by segment, touch, template, and send-time cohort.
+- **Experiment deliberately.** Compare three- and four-touch sequences, copy,
+  timing, subject lines, and format. Retain changes only when incremental
+  bookings justify their unsubscribe, complaint, and brand costs.
+- **Use response data beyond outreach.** Aggregated, verified relocation data
+  could inform potential practice locations alongside market demand,
+  competition, and cost. Respondents are self-selected, so this signal is not
+  representative on its own.
+- **Expand campaigns carefully.** Add approved seasonal campaigns, such as
+  back-to-school outreach to verified guardians. AI could assist with drafting
+  variants using only approved facts and human review.
+- **Productionize the system.** Replace SQLite with managed Postgres, trigger
+  planning with EventBridge Scheduler, queue due deliveries in SQS, and use
+  controlled workers for Resend. Add Secrets Manager, structured logs,
+  dashboards, retries, a dead-letter queue, and CloudWatch paging. Postgres
+  would retain long-term touch timing because SQS is the delivery queue, not
+  the sequence scheduler.
+- **Profile and tune capacity.** Monitor CPU, memory, duration, concurrency,
+  database latency, queue depth, and provider limits. Spread due times across
+  daily windows and cap concurrency to prevent bursts.
+
+### Scope intentionally cut for this take-home
+
+- The implementation is a stateful scheduled CLI, not a hosted UI or always-on
+  API; authentication and staff administration are omitted.
+- CSV polling stands in for booking webhooks and source-system integrations,
+  leaving a documented race window between exports.
+- Outreach is email-only. SMS and phone outreach require separate consent,
+  preference, and compliance handling.
+- Templates and timing are configured in code; there is no campaign editor,
+  approval workflow, reply classifier, or experimentation platform.
+- Booking links, availability, insurance information, practice updates, and
+  the unsubscribe endpoint require verified production integrations. Sample
+  URLs are placeholders; opt-outs can be demonstrated with `suppress`.
+- SQLite is appropriate locally but not for horizontally scaled workers. Cloud
+  infrastructure, deployment automation, paging, and dashboards are proposed
+  rather than provisioned.
+- The input contract requires only fields the engine uses; unused fields such
+  as `phone` and `broken` remain optional.
+- Tests target the highest-risk eligibility, segmentation, state-transition,
+  and idempotency behavior rather than exhaustive integration or load coverage.

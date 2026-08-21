@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recall-outreach-engine"
+version = "0.1.0"
+description = "Stateful, paced dental recall outreach engine"
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+recall-engine = "recall_engine.cli:entrypoint"
+
+[tool.setuptools.packages.find]
+include = ["recall_engine*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
