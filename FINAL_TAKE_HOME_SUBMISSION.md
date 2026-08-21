@@ -44,8 +44,8 @@ Initial profiling found 5,999 patient rows and 61,736 appointment rows.
 - `patients.birth_date` is missing in 146 rows (2.43%). Missingness appears in
   every 1,000-patient-ID range (1.90%–3.20%), so it is not isolated to one
   import cohort. It is higher for male records (3.15%) than female records
-  (1.66%) and for Provider A (2.51%) than Provider B (0.30%), but none of these
-  fields determines recall eligibility.
+  (1.66%) and for Provider A (2.51%) than Provider B (0.30%). Birth date does
+  not determine recall eligibility.
 - `patients.deactivation_reason` is blank for every row, consistent with the
   file being active-only.
 - Patient ID is not a useful proxy for age: mean age varies only from 48.1 to
@@ -527,6 +527,10 @@ lapsed:
 Any insurer, location, availability, or offer mentioned in production must be
 verified at send time.
 
+The current engine uses generic equivalents for fields absent from the export,
+such as suggested slots, availability windows, practice updates, insurance
+information, and offers.
+
 ### Email templates
 
 Fill template fields only with verified, current values. Every message ends
@@ -720,7 +724,8 @@ losing state.
 
 Nine unit tests cover eligibility, segment boundaries, calendar-month
 calculations, booking and opt-out transitions, cooldowns, and idempotency. A
-controlled Resend delivery is shown in
+controlled Resend delivery, including calculated months since the patient's
+last visit, is shown in
 [Part D system design](docs/part_d_system_design.md); setup and run commands are
 in the [README](README.md).
 
@@ -732,15 +737,17 @@ in the [README](README.md).
 - Ingest booking events and replies, convert clear responses into verified
   patient outcomes, and route ambiguous replies to staff.
 - Measure bookings, completed visits, unsubscribes, complaints, replies, and
-  delivery health by segment, touch, template, and send time.
+  delivery health by segment, touch, template, and send time, including the
+  success-to-unsubscribe ratio (`bookings / unsubscribes`).
 - Compare three- and four-touch sequences. Keep an extra touch only when its
   incremental bookings justify the added unsubscribes and complaints.
 - Use verified relocation responses as one signal when evaluating new practice
   locations, alongside demand, competition, and cost.
 - Move SQLite to Postgres, schedule planning with EventBridge, queue sends in
   SQS, store secrets securely, and add retries, dashboards, and alerts.
-- Add basic authenticated staff tools and carefully approved seasonal
-  campaigns. AI may help draft variants from verified facts, with human review.
+- Add basic authenticated staff tools and carefully approved back-to-school and
+  senior holiday campaigns. AI may help draft variants from verified facts,
+  with human review.
 - Tune send volume and worker concurrency from appointment capacity, queue
   depth, resource use, and provider limits.
 

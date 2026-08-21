@@ -173,13 +173,15 @@ The same suite also runs under pytest after `python3 -m pip install -e '.[test]'
 - Ingest booking events and replies, turn clear responses into verified patient
   outcomes, and route ambiguous replies to staff.
 - Measure bookings, completed visits, unsubscribes, complaints, and delivery
-  health by segment and touch; use controlled tests to improve copy and timing.
+  health by segment and touch, including the success-to-unsubscribe ratio;
+  compare three- and four-touch sequences with controlled tests.
 - Use verified relocation responses as one input when evaluating new practice
   locations, while accounting for the self-selected sample.
 - Move SQLite to Postgres, schedule planning with EventBridge, queue sends in
   SQS, store secrets securely, and add retries, dashboards, and alerts.
-- Add basic authenticated staff tools, carefully approved seasonal campaigns,
-  and AI-assisted drafting limited to verified facts and human review.
+- Add basic authenticated staff tools, carefully approved back-to-school and
+  senior holiday campaigns, and AI-assisted drafting limited to verified facts
+  and human review.
 - Tune send volume and worker concurrency from appointment capacity, queue
   depth, resource use, and provider limits.
 

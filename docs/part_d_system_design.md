@@ -70,7 +70,8 @@ call. A booking webhook would close that gap in production.
 ## Real email demonstration
 
 On 2026-08-20, a controlled run sent one Hot-segment email through Resend using
-`--recipient-override` and `--delivery-limit 1`. Resend returned a message ID,
+`--recipient-override` and `--delivery-limit 1`. The message included the
+calculated months since the patient's last visit. Resend returned a message ID,
 which the engine saved with the `sent` state. No dataset address received mail.
 
 ![Live email delivered through Resend](assets/resend_live_email.png)
@@ -118,8 +119,8 @@ Current result: **9 tests passed**.
   backlog, active sequences, outcomes, delivery health, and pause/resume
   controls without requiring direct CLI or database access.
 - **Learn from results.** I would compare conversion and unsubscribe rates
-  across segments, templates, touch counts, and send times, then adjust the
-  copy and pacing using those results.
+  across segments, templates, touch counts, and send times, including the
+  success-to-unsubscribe ratio, then adjust copy and pacing using those results.
 - **Tune capacity from real usage.** CPU, memory, queue depth, provider limits,
   and appointment availability would determine worker concurrency and daily
   send volume rather than relying permanently on the take-home defaults.

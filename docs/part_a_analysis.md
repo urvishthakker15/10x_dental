@@ -30,8 +30,8 @@ Initial profiling found 5,999 patient rows and 61,736 appointment rows.
 - `patients.birth_date` is missing in 146 rows (2.43%). Missingness appears in
   every 1,000-patient-ID range (1.90%–3.20%), so it is not isolated to one
   import cohort. It is higher for male records (3.15%) than female records
-  (1.66%) and for Provider A (2.51%) than Provider B (0.30%), but none of these
-  fields determines recall eligibility.
+  (1.66%) and for Provider A (2.51%) than Provider B (0.30%). Birth date does
+  not determine recall eligibility.
 - `patients.deactivation_reason` is blank for every row, consistent with the
   file being active-only.
 - Patient ID is not a useful proxy for age: mean age varies only from 48.1 to

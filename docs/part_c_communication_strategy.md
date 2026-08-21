@@ -57,6 +57,10 @@ lapsed:
 Any insurer, location, availability, or offer mentioned in production must be
 verified at send time.
 
+The current engine uses generic equivalents for fields absent from the export,
+such as suggested slots, availability windows, practice updates, insurance
+information, and offers.
+
 ## Email templates
 
 Fill template fields only with verified, current values. Every message ends
@@ -242,8 +246,9 @@ without repeatedly targeting the same people.
 - Compare three touches with four, keeping the extra touch only if incremental
   bookings justify the added unsubscribes and complaints.
 - Measure booking conversion, completed visits, unsubscribes, complaints, and
-  replies by segment, touch, template, and send time. Opens and clicks are
-  supporting signals where reliable.
+  replies by segment, touch, template, and send time. Track the
+  success-to-unsubscribe ratio (`bookings / unsubscribes`) alongside those
+  outcomes; opens and clicks are supporting signals where reliable.
 - Ingest replies such as “I moved,” “I use another practice,” or “contact me
   later” as verified, structured outcomes. Ambiguous replies should go to staff
   review.
@@ -251,6 +256,7 @@ without repeatedly targeting the same people.
   locations, alongside demand, competition, and cost. Respondents are
   self-selected, so the signal is not representative on its own.
 - Test seasonal campaigns only with appropriate contact data—for example,
-  back-to-school outreach sent to a verified guardian.
+  back-to-school outreach sent to a verified guardian and holiday-period
+  outreach designed around seniors' scheduling needs.
 - Use AI to draft variants from approved facts, followed by human review. It
   must not invent clinical claims, insurance coverage, availability, or offers.
