@@ -19,7 +19,8 @@ Each invocation:
 
 First touches are spread across 8am, 2pm, and 7pm over seven days. Follow-ups
 are scheduled for Days 8 and 21. The engine can be run three times daily from
-cron without recomputing or losing prior state.
+cron without recomputing or losing prior state. After a long pause, it sends
+only the next pending touch and moves later touches to preserve their spacing.
 
 ## Codebase map
 
@@ -184,6 +185,9 @@ The same suite also runs under pytest after `python3 -m pip install -e '.[test]'
   and human review.
 - Tune send volume and worker concurrency from appointment capacity, queue
   depth, resource use, and provider limits.
+- Further harden scheduled delivery and pause/resume behavior by testing
+  interrupted or overlapping runs, handling longer provider outages, and
+  alerting on messages that become stuck or are retried unexpectedly.
 
 ### Scope intentionally cut for this take-home
 

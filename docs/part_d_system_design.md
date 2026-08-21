@@ -45,6 +45,10 @@ Each message moves from `pending` to `sending` to `sent`. The claim is atomic,
 and retries reuse the stored Resend idempotency key. If a worker stops after
 claiming a message, a later run releases the stale claim safely.
 
+Only the next pending touch can be sent for an enrollment. If a run resumes
+late, the engine moves the remaining due times from the actual send time so it
+does not deliver several accumulated touches together.
+
 After a booking, the patient remains suppressed until that appointment becomes
 a completed visit. They can enter a new recall cycle only when that later visit
 itself becomes more than six months old and nothing new is booked.
@@ -88,8 +92,9 @@ fake email sender. It verifies:
 - one enrollment plan per week;
 - no repeat delivery after a successful touch;
 - booking conversion and cancellation of remaining touches;
-- durable opt-out suppression and blocked re-enrollment; and
-- final-touch completion with a 90-day cooldown.
+- durable opt-out suppression and blocked re-enrollment;
+- final-touch completion with a 90-day cooldown; and
+- late resume behavior that sends one touch and preserves follow-up spacing.
 
 Run it with:
 
@@ -97,7 +102,7 @@ Run it with:
 python3 -m unittest discover -s tests -v
 ```
 
-Current result: **9 tests passed**.
+Current result: **10 tests passed**.
 
 ## What I would do with more time
 
@@ -124,3 +129,6 @@ Current result: **9 tests passed**.
 - **Tune capacity from real usage.** CPU, memory, queue depth, provider limits,
   and appointment availability would determine worker concurrency and daily
   send volume rather than relying permanently on the take-home defaults.
+- **Harden pause and recovery behavior.** I would test more interrupted or
+  overlapping runs, cover longer provider outages, and alert on messages that
+  become stuck or are retried unexpectedly.

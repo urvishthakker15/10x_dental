@@ -68,11 +68,17 @@ class SequenceStateTests(EngineTestCase):
         self.assertEqual(enrollment_count, 1)
 
     def test_final_touch_completes_sequence_and_starts_cooldown(self) -> None:
-        """Sending all three due touches must close the sequence for 90 days."""
+        """Three sequential touches must close the sequence for 90 days."""
         sender = FakeSender()
-        after_final_touch = self.now + timedelta(days=22)
+        first = self.engine.send_due_messages(
+            self.states, self.now, sender, dry_run=False
+        )
+        second = self.engine.send_due_messages(
+            self.states, self.now + timedelta(days=8), sender, dry_run=False
+        )
+        after_final_touch = self.now + timedelta(days=21)
 
-        result = self.engine.send_due_messages(
+        third = self.engine.send_due_messages(
             self.states, after_final_touch, sender, dry_run=False
         )
         repeated = self.engine.send_due_messages(
@@ -84,7 +90,9 @@ class SequenceStateTests(EngineTestCase):
                 "SELECT status, cooldown_until FROM enrollments"
             ).fetchone()
             sent_count = connection.execute("SELECT COUNT(*) FROM messages WHERE state='sent'").fetchone()[0]
-        self.assertEqual(result["sent"], 3)
+        self.assertEqual(first["sent"], 1)
+        self.assertEqual(second["sent"], 1)
+        self.assertEqual(third["sent"], 1)
         self.assertEqual(repeated["sent"], 0)
         self.assertEqual(len(sender.calls), 3)
         self.assertEqual(enrollment["status"], "completed_no_response")
@@ -93,3 +101,52 @@ class SequenceStateTests(EngineTestCase):
             (after_final_touch + timedelta(days=90)).isoformat(timespec="seconds"),
         )
         self.assertEqual(sent_count, 3)
+
+    def test_long_pause_sends_only_next_touch_and_preserves_spacing(self) -> None:
+        """Resuming late must not send several touches to one patient at once."""
+        sender = FakeSender()
+        resumed_at = self.now + timedelta(days=22)
+
+        first = self.engine.send_due_messages(
+            self.states, resumed_at, sender, dry_run=False
+        )
+        repeated = self.engine.send_due_messages(
+            self.states, resumed_at, sender, dry_run=False
+        )
+
+        with self.database.connection() as connection:
+            messages = connection.execute(
+                "SELECT touch_number, state, due_at FROM messages ORDER BY touch_number"
+            ).fetchall()
+
+        self.assertEqual(first["sent"], 1)
+        self.assertEqual(repeated["sent"], 0)
+        self.assertEqual(len(sender.calls), 1)
+        self.assertEqual([row["state"] for row in messages], ["sent", "pending", "pending"])
+        self.assertEqual(
+            messages[1]["due_at"],
+            (resumed_at + timedelta(days=8)).isoformat(timespec="seconds"),
+        )
+        self.assertEqual(
+            messages[2]["due_at"],
+            (resumed_at + timedelta(days=21)).isoformat(timespec="seconds"),
+        )
+
+        before_second = self.engine.send_due_messages(
+            self.states, resumed_at + timedelta(days=7), sender, dry_run=False
+        )
+        second = self.engine.send_due_messages(
+            self.states, resumed_at + timedelta(days=8), sender, dry_run=False
+        )
+        before_third = self.engine.send_due_messages(
+            self.states, resumed_at + timedelta(days=20), sender, dry_run=False
+        )
+        third = self.engine.send_due_messages(
+            self.states, resumed_at + timedelta(days=21), sender, dry_run=False
+        )
+
+        self.assertEqual(before_second["sent"], 0)
+        self.assertEqual(second["sent"], 1)
+        self.assertEqual(before_third["sent"], 0)
+        self.assertEqual(third["sent"], 1)
+        self.assertEqual(len(sender.calls), 3)
